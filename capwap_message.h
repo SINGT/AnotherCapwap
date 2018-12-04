@@ -2,7 +2,7 @@
 #define __CAPWAP_PROTOCOL_H__
 
 #include <stdint.h>
-#include "tlv/tlv.h"
+#include "tlv.h"
 
 struct client_msg {
 	uint32_t data_len;

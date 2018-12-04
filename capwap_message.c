@@ -9,7 +9,7 @@
 #include "capwap_message.h"
 #include "CWProtocol.h"
 #include "network.h"
-#include "tlv/tlv.h"
+#include "tlv.h"
 #include "CWLog.h"
 
 void cwmsg_protohdr_parse(void *buff, struct cw_protohdr *header)

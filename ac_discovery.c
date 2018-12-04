@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
-#include "tlv/tlv.h"
+#include "tlv.h"
 #include "capwap_message.h"
 #include "network.h"
 #include "CWProtocol.h"
