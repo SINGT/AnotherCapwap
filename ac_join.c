@@ -10,13 +10,13 @@
 
 static int capwap_parse_join_request(struct capwap_wtp *wtp, struct cw_ctrlmsg *join_req)
 {
-	struct cw_elem_tlv_with_id *id_tlv_elem;
+	struct tlv_box *join_elem;
 	uint16_t elem_type;
 	uint16_t elem_len;
 	void *elem_value;
 
-	id_tlv_elem = cwmsg_tlv_with_id_malloc();
-	if (!id_tlv_elem)
+	join_elem = tlv_box_create();
+	if (!join_elem)
 		return -ENOMEM;
 
 	cwmsg_ctrlmsg_for_each_elem(join_req, elem_type, elem_len, elem_value) {
@@ -25,12 +25,14 @@ static int capwap_parse_join_request(struct capwap_wtp *wtp, struct cw_ctrlmsg *
 			wtp->location = cwmsg_parse_string(elem_value, elem_len);
 			break;
 		case CW_MSG_ELEMENT_WTP_BOARD_DATA_CW_TYPE:
-			cwmsg_tlv_with_id_reinit(id_tlv_elem);
-			if (cwmsg_parse_tlv_with_id(&id_tlv_elem, elem_value, min(CW_SESSION_ID_LENGTH, elem_len))) {
+			tlv_box_init(join_elem);
+			tlv_box_set_how(join_elem, SERIAL_WITH_ID);
+			if (tlv_box_parse(join_elem, elem_value, elem_len)) {
 				CWLog("Invalid board data elem, ignore this join request");
 				goto error_request;
 			}
-			cwmsg_parse_board_data(&wtp->board_data, id_tlv_elem);
+			cwmsg_parse_board_data(&wtp->board_data, join_elem);
+			tlv_box_destroy(join_elem);
 			break;
 		case CW_MSG_ELEMENT_SESSION_ID_CW_TYPE:
 			cwmsg_parse_raw(wtp->session_id, CW_SESSION_ID_LENGTH, elem_value, elem_len);
@@ -66,18 +68,21 @@ static int capwap_parse_join_request(struct capwap_wtp *wtp, struct cw_ctrlmsg *
 		}
 	}
 
-	cwmsg_tlv_with_id_free(id_tlv_elem);
+	tlv_box_destroy(join_elem);
 	return 0;
 
 error_request:
 	FREE(wtp->location);
 	FREE(wtp->name);
-	cwmsg_tlv_with_id_free(id_tlv_elem);
+	tlv_box_destroy(join_elem);
 	return -EINVAL;
 }
 
 static int capwap_send_join_response(struct capwap_wtp *wtp)
 {
+	struct cw_ctrlmsg *join_resp;
+
+	join_resp = cwmsg_ctrlmsg_malloc();
 	return 0;
 }
 

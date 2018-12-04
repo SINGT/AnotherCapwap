@@ -104,7 +104,7 @@ int tlv_box_parse(struct tlv_box *box, void *buffer, int buffersize)
 	if (box->serialized_len - old_len != buffersize)
 		goto fail;
 
-	return box;
+	return 0;
 
 fail:
 	list_for_each_entry_safe_reverse(tlv, tmp, &box->tlv_list, list) {
@@ -116,7 +116,7 @@ fail:
 		free(tlv);
 		i--;
 	}
-	return NULL;
+	return -ENOMEM;
 }
 
 int inline tlv_box_put_string(struct tlv_box *box, uint16_t type, char *value)
@@ -146,6 +146,7 @@ void tlv_box_destroy(struct tlv_box *box)
 		free(box->serialized_buffer);
 		box->serialized_buffer = NULL;
 	}
+	free(box);
 
 	return;
 }

@@ -97,16 +97,6 @@ static struct tlv *__internal_tlv  __attribute__((unused));
 #define cwmsg_ctrlmsg_for_each_elem(msg_ptr, type, len, value)                                      \
 	tlv_box_for_each_tlv(&(msg_ptr)->elem_box, __internal_tlv, type, len, value)
 
-struct cw_elem_tlv_with_id {
-	uint32_t vendor_id;
-	struct tlv_box sub_elem;
-};
-
-struct cw_elem_tlv_with_id *cwmsg_tlv_with_id_malloc();
-void cwmsg_tlv_with_id_reinit(struct cw_elem_tlv_with_id *t);
-void cwmsg_tlv_with_id_free(struct cw_elem_tlv_with_id *t);
-int cwmsg_parse_tlv_with_id(struct cw_elem_tlv_with_id *elem, void *value, uint16_t len);
-
 struct cw_wtp_board_data {
 	uint32_t vendor_id;
 	uint8_t model[32];
@@ -114,8 +104,7 @@ struct cw_wtp_board_data {
 	uint8_t hardware_version[32];
 	uint8_t mac[6];
 };
-
-int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, struct cw_elem_tlv_with_id *elem);
+int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, struct tlv_box *elem);
 
 struct cw_wtp_descriptor {
 	uint8_t max_radio;
@@ -127,12 +116,25 @@ struct cw_wtp_descriptor {
 	uint8_t software_version[32];
 	uint8_t boot_version[32];
 };
-
 int cwmsg_parse_wtp_descriptor(struct cw_wtp_descriptor *desc, void *value, uint16_t len);
 
 struct cw_wtp_vendor_spec {
 	uint32_t led_status;
 	uint32_t updata_status;
+};
+int cwmsg_parse_vendor_spec(struct cw_wtp_vendor_spec *vendor, void *value, uint16_t len);
+
+struct cw_ac_descriptor {
+	uint16_t station_num;
+	uint16_t station_limit;
+	uint16_t active_aps;
+	uint16_t max_aps;
+	uint8_t security;
+	uint8_t r_mac;
+	uint8_t reserved;
+	uint8_t dtls;
+	char hardware_version[32];
+	char software_version[32];
 };
 
 #endif

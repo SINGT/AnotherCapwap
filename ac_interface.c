@@ -15,7 +15,7 @@
 
 struct json_operation {
     char *name;
-    int (*act)(void *, json_object *);
+    int (*act)(json_object *, void *);
 };
 
 struct json_object *json_object_object_get_old(struct json_object *obj, const char *name)
@@ -40,7 +40,7 @@ static struct device_attr *find_device_attr_by_json(json_object *json)
 	return find_dev_attr_by_mac(dev_mac);
 }
 
-static int set_device_to_group(void *arg, json_object *msg)
+static int set_device_to_group(json_object *msg, void *arg)
 {
 	struct capwap_wtp *wtp = arg;
 	struct device_attr *dev_attr;
@@ -147,7 +147,7 @@ static void parse_json_wifi_config(json_object *wifi_obj, struct wifi_attr *attr
 	return;
 }
 
-static int set_device_config(void *arg, json_object *msg)
+static int set_device_config(json_object *msg, void *arg)
 {
 	struct capwap_wtp *wtp = arg;
 	struct device_attr *dev_attr;
@@ -208,7 +208,7 @@ err_out:
 	return err;
 }
 
-static int set_group_name(void *arg, json_object *msg)
+static int set_group_name(json_object *msg, void *arg)
 {
 	struct capwap_wtp *wtp = arg;
 	struct device_attr *dev_attr;
@@ -232,7 +232,7 @@ static int set_group_name(void *arg, json_object *msg)
 	return err;
 }
 
-static int do_wtp_command(void *arg, json_object *msg)
+static int do_wtp_command(json_object *msg, void *arg)
 {
 	struct capwap_wtp *wtp = arg;
 	struct device_attr *attr = find_device_attr_by_json(msg);
@@ -246,17 +246,10 @@ static int do_wtp_command(void *arg, json_object *msg)
 	if (!command)
 		return -EINVAL;
 
-	dev_attr_mutex_lock(attr);
-	if (!attr->status) {
-		dev_attr_mutex_unlock(attr);
-		return -ENODEV;
-	}
-	dev_attr_mutex_unlock(attr);
-
 	return ac_do_wtp_command(wtp, command);
 }
 
-static int ap_update(void *arg, json_object *msg)
+static int ap_update(json_object *msg, void *arg)
 {
 	struct capwap_wtp *wtp = arg;
 	struct device_attr *attr = find_device_attr_by_json(msg);
@@ -271,17 +264,12 @@ static int ap_update(void *arg, json_object *msg)
 	if (!path || !md5 || !version)
 		return -EINVAL;
 
-	dev_attr_mutex_lock(attr);
-	if (!attr->status) {
-		dev_attr_mutex_unlock(attr);
-		return -ENODEV;
-	}
-	dev_attr_mutex_unlock(attr);
 
-	return ac_do_ap_update(wtp, path, md5, version);
+
+	return 0;
 }
 
-static int delete_device(void *arg, json_object *msg)
+static int delete_device(json_object *msg, void *arg)
 {
 	struct device_attr *attr = find_device_attr_by_json(msg);
 	int err = 0;
@@ -307,9 +295,9 @@ static int delete_device(void *arg, json_object *msg)
 	return err;
 }
 
-#define OPERATION(func)             \
-	{                               \
-		.name = #func, .act = func, \
+#define OPERATION(func)                                                                            \
+	{                                                                                          \
+		.name = #func, .act = func,                                                        \
 	}
 
 static struct json_operation device_operations[] = {
@@ -357,7 +345,7 @@ int json_handle(const char *msg, struct json_operation *op, int op_num, void *ar
 	if (!dev_op)
 		return -EINVAL;
 
-	err = dev_op->act(arg, msg_obj);
+	err = dev_op->act(msg_obj, arg);
 	json_object_put(msg_obj);
 	return err;
 }

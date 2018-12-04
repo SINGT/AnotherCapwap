@@ -12,23 +12,41 @@
 #include "tlv.h"
 #include "CWLog.h"
 
+uint8_t cwmsg_parse_u8(void *value)
+{
+	return *(uint8_t *)value;
+}
+
+uint16_t cwmsg_parse_u16(void *value)
+{
+	uint16_t tmp;
+	memcpy(&tmp, value, sizeof(uint16_t));
+	return htons(tmp);
+}
+
+uint32_t cwmsg_parse_u32(void *value)
+{
+	uint32_t tmp;
+	memcpy(&tmp, value, sizeof(uint32_t));
+	return htonl(tmp);
+}
+
 void cwmsg_protohdr_parse(void *buff, struct cw_protohdr *header)
 {
-	uint32_t *val = buff;
-
-	header->head.d32 = htonl(*val++);
-	header->frag.d32 = htonl(*val);
+	header->head.d32 = cwmsg_parse_u32(buff);
+	buff += sizeof(uint32_t);
+	header->frag.d32 = cwmsg_parse_u32(buff);
 }
 
 void cwmsg_ctrlhdr_parse(void *msg, struct cw_ctrlhdr *ctrlhdr)
 {
-	ctrlhdr->type = ntohl(*(uint32_t *)msg);
+	ctrlhdr->type = cwmsg_parse_u32(msg);
 	msg += sizeof(uint32_t);
-	ctrlhdr->seq_num = *(uint8_t *)msg;
+	ctrlhdr->seq_num = cwmsg_parse_u8(msg);
 	msg += sizeof(uint8_t);
-	ctrlhdr->length = htons(*(uint16_t *)msg);
+	ctrlhdr->length = cwmsg_parse_u16(msg);
 	msg += sizeof(uint16_t);
-	ctrlhdr->flags = *(uint8_t *)msg;
+	ctrlhdr->flags = cwmsg_parse_u8(msg);
 }
 
 struct cw_ctrlmsg *cwmsg_ctrlmsg_malloc()
@@ -169,56 +187,7 @@ void cwmsg_parse_raw(void *dst, uint16_t dst_len, void *value, uint16_t value_le
 	memcpy(dst, value, min(dst_len, value_len));
 }
 
-uint8_t cwmsg_parse_u8(void *value)
-{
-	return *(uint8_t *)value;
-}
-
-uint16_t cwmsg_parse_u16(void *value)
-{
-	uint16_t tmp = *(uint16_t *)value;
-	return htons(tmp);
-}
-
-uint32_t cwmsg_parse_u32(void *value)
-{
-	uint32_t tmp = *(uint32_t *)value;
-	return htonl(tmp);
-}
-
-struct cw_elem_tlv_with_id *cwmsg_tlv_with_id_malloc()
-{
-	struct cw_elem_tlv_with_id *t = MALLOC(sizeof(*t));
-	if (!t)
-		return NULL;
-	tlv_box_init(&t->sub_elem);
-	return t;
-}
-
-void cwmsg_tlv_with_id_reinit(struct cw_elem_tlv_with_id *t)
-{
-	tlv_box_destroy(&t->sub_elem);
-}
-
-void cwmsg_tlv_with_id_free(struct cw_elem_tlv_with_id *t)
-{
-	tlv_box_destroy(&t->sub_elem);
-	FREE(t);
-}
-
-int cwmsg_parse_tlv_with_id(struct cw_elem_tlv_with_id *elem, void *value, uint16_t len)
-{
-	// FIXME: Multi elem with different vendor_id parsed in the same struct?
-	elem->vendor_id = cwmsg_parse_u32(value);
-	return tlv_box_parse(&elem->sub_elem, value + sizeof(uint32_t), len - sizeof(uint32_t));
-}
-
-void cwmsg_destory_tlv_with_id(struct cw_elem_tlv_with_id *elem)
-{
-	tlv_box_destroy(&elem->sub_elem);
-}
-
-int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, struct cw_elem_tlv_with_id *elem)
+int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, struct tlv_box *elem)
 {
 	struct tlv *tlv;
 	uint16_t type;
@@ -226,14 +195,12 @@ int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, struct cw_elem_
 	void *value;
 
 	// TODO: Judge vendor ID?
-	tlv_box_for_each_tlv(&elem->sub_elem, tlv, type, len, value) {
+	tlv_box_for_each_tlv(elem, tlv, type, len, value) {
 		switch (type) {
 		case CW_WTP_MODEL_NUMBER:
-			len = min(len, sizeof(board_data->model));
 			cwmsg_parse_raw(board_data->model, sizeof(board_data->model), value, len);
 			break;
 		case CW_BASE_MAC:
-			len = min(len, sizeof(board_data->mac));
 			cwmsg_parse_raw(board_data->mac, sizeof(board_data->mac), value, len);
 			break;
 		}
@@ -243,7 +210,7 @@ int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, struct cw_elem_
 }
 int cwmsg_parse_wtp_descriptor(struct cw_wtp_descriptor *desc, void *value, uint16_t len)
 {
-	struct cw_elem_tlv_with_id *id_tlv;
+	struct tlv_box *desc_elem;
 	struct tlv *tlv;
 	uint16_t offset = 0;
 	uint16_t sub_type;
@@ -256,46 +223,46 @@ int cwmsg_parse_wtp_descriptor(struct cw_wtp_descriptor *desc, void *value, uint
 	desc->encryp_wbid = cwmsg_parse_u8(value + offset++);
 	desc->encryp_cap = cwmsg_parse_u16(value + offset);
 	offset += sizeof(uint16_t);
-	if (!(id_tlv = cwmsg_tlv_with_id_malloc()))
+	if (!(desc_elem = tlv_box_create()))
 		return -EINVAL;
-	if (cwmsg_parse_tlv_with_id(id_tlv, value + offset, len - offset)) {
-		cwmsg_tlv_with_id_free(id_tlv);
+	tlv_box_set_how(desc_elem, SERIAL_EACH_WITH_ID);
+	if (tlv_box_parse(desc_elem, value + offset, len - offset)) {
+		tlv_box_destroy(desc_elem);
 		return -EINVAL;
 	}
 
-	tlv_box_for_each_tlv(&id_tlv->sub_elem, tlv, sub_type, sub_len, sub_value) {
+	tlv_box_for_each_tlv(desc_elem, tlv, sub_type, sub_len, sub_value) {
 		switch (sub_type) {
 		case CW_WTP_HARDWARE_VERSION:
-			sub_len = min(sub_len, sizeof(desc->hardware_version));
 			cwmsg_parse_raw(desc->hardware_version, sizeof(desc->hardware_version), sub_value, sub_len);
 			break;
 		case CW_WTP_SOFTWARE_VERSION:
-			sub_len = min(sub_len, sizeof(desc->software_version));
 			cwmsg_parse_raw(desc->software_version, sizeof(desc->software_version), sub_value, sub_len);
 			break;
 		}
 	}
-	cwmsg_tlv_with_id_free(id_tlv);
+	tlv_box_destroy(desc_elem);
 	return 0;
 }
 
 int cwmsg_parse_vendor_spec(struct cw_wtp_vendor_spec *vendor, void *value, uint16_t len)
 {
-	struct cw_elem_tlv_with_id *id_tlv;
+	struct tlv_box *vendor_elem;
 	struct tlv *tlv;
 	uint16_t sub_type;
 	uint16_t sub_len;
 	void *sub_value;
 
-	if (!(id_tlv = cwmsg_tlv_with_id_malloc()))
+	if (!(vendor_elem = tlv_box_create()))
 		return -ENOMEM;
 
-	if (cwmsg_parse_tlv_with_id(id_tlv, value, len)) {
-		cwmsg_tlv_with_id_free(id_tlv);
+	tlv_box_set_how(vendor_elem, SERIAL_EACH_WITH_ID);
+	if (tlv_box_parse(vendor_elem, value, len)) {
+		tlv_box_destroy(vendor_elem);
 		return -EINVAL;
 	}
 
-	tlv_box_for_each_tlv(&id_tlv->sub_elem, tlv, sub_type, sub_len, sub_value) {
+	tlv_box_for_each_tlv(vendor_elem, tlv, sub_type, sub_len, sub_value) {
 		switch (sub_type) {
 		case CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_LED:
 			vendor->led_status = cwmsg_parse_u8(sub_value);
@@ -303,6 +270,7 @@ int cwmsg_parse_vendor_spec(struct cw_wtp_vendor_spec *vendor, void *value, uint
 			vendor->updata_status = cwmsg_parse_u8(sub_value);
 		}
 	}
+	tlv_box_destroy(vendor_elem);
 	return 0;
 }
 

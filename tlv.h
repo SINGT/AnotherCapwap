@@ -43,22 +43,20 @@ struct tlv_box {
 
 void tlv_box_init(struct tlv_box *box);
 struct tlv_box *tlv_box_create();
-int tlv_box_parse(struct tlv_box *_box, void *buffer,int buffersize);
 void tlv_box_destroy(struct tlv_box *box);
-
-int tlv_box_putobject(struct tlv_box *box, uint16_t type, void *value, uint16_t length);
 
 void *tlv_box_get_buffer(struct tlv_box *box);
 int tlv_box_get_size(struct tlv_box *box);
+
+void tlv_box_set_how(struct tlv_box *box, uint32_t how);
 
 int tlv_box_put_raw(struct tlv_box *box, uint16_t type, uint16_t length, const void *value);
 int tlv_box_put_string(struct tlv_box *box, uint16_t type, char *value);
 int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object);
 
+int tlv_box_parse(struct tlv_box *_box, void *buffer,int buffersize);
 int tlv_box_serialize(struct tlv_box *box);
 
 struct tlv *tlv_box_find_type(struct tlv_box *box, uint16_t type);
-
-int tlv_box_get_object(struct tlv_box *box,uint16_t type,struct tlv_box **object);
 
 #endif //_TLV_H_
