@@ -29,13 +29,10 @@
 
 int main(int argc, char const *argv[])
 {
-    tlv_box_t *box = tlv_box_create();
+    struct tlv_box *box = tlv_box_create();
     tlv_box_put_u8(box, TEST_TYPE_1, 'x');
     tlv_box_put_u16(box, TEST_TYPE_2, (short)2);
     tlv_box_put_u32(box, TEST_TYPE_3, (int)3);
-    tlv_box_put_u32(box, TEST_TYPE_4, (long)4);
-    tlv_box_put_u32(box, TEST_TYPE_5, (float)5.67);
-    tlv_box_put_u32(box, TEST_TYPE_6, (double)8.91);
     tlv_box_put_string(box, TEST_TYPE_7, (char *)"hello world !");
     unsigned char array[6] = {1, 2, 3, 4, 5, 6};
     tlv_box_put_raw(box,TEST_TYPE_8, 6, array);
@@ -47,7 +44,7 @@ int main(int argc, char const *argv[])
 
     LOG("box serialize success, %d bytes \n", tlv_box_get_size(box));
 
-    tlv_box_t *boxes = tlv_box_create();
+    struct tlv_box *boxes = tlv_box_create();
     tlv_box_put_box(boxes, TEST_TYPE_9, box);
 
     if (tlv_box_serialize(boxes) != 0) {
@@ -57,18 +54,18 @@ int main(int argc, char const *argv[])
 
     LOG("boxes serialize success, %d bytes \n", tlv_box_get_size(boxes));
 
-    tlv_box_t *parsedBoxes = tlv_box_parse(tlv_box_get_buffer(boxes), tlv_box_get_size(boxes));
+    struct tlv_box *parsedBoxes = tlv_box_parse(NULL, tlv_box_get_buffer(boxes), tlv_box_get_size(boxes));
 
     LOG("boxes parse success, %d bytes \n", tlv_box_get_size(parsedBoxes));
 
-    tlv_t *tlv;
+    struct tlv *tlv;
     uint16_t type, length;
     void *value;
-	tlv_box_t *parsedBox;
+	struct tlv_box *parsedBox;
     tlv_box_for_each_tlv(parsedBoxes, tlv, type, length, value) {
 	    switch (tlv->type) {
 	    case TEST_TYPE_9:
-		    if (!(parsedBox = tlv_box_parse(tlv->value, tlv->length))) {
+		    if (!(parsedBox = tlv_box_parse(NULL, tlv->value, tlv->length))) {
 			    LOG("tlv box parsed from boxes failed\n");
 			    return -1;
 		    } else {
@@ -91,15 +88,6 @@ int main(int argc, char const *argv[])
 		    break;
 	    case TEST_TYPE_3:
 		    LOG("tlv_box_get_int success %d:%d \n", length, *(uint32_t *)value);
-		    break;
-	    case TEST_TYPE_4:
-		    LOG("tlv_box_get_long success %d:%x \n", length, *(uint32_t *)value);
-		    break;
-	    case TEST_TYPE_5:
-		    LOG("tlv_box_get_float success %d:%x \n", length, *(uint32_t *)value);
-		    break;
-	    case TEST_TYPE_6:
-		    LOG("tlv_box_get_double success %d:%x \n", length, *(uint32_t *)value);
 		    break;
 	    case TEST_TYPE_7:
 		    LOG("tlv_box_get_string success %d:%s \n", length, (char *)value);

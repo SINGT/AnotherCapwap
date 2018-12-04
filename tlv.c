@@ -11,20 +11,20 @@ void tlv_box_init(struct tlv_box *box)
 		return;
 
 	INIT_LIST_HEAD(&box->tlv_list);
-    box->serialized_buffer = NULL;
-    box->serialized_len = 0;
+	box->serialized_buffer = NULL;
+	box->serialized_len = 0;
 }
 
 struct tlv_box *tlv_box_create()
 {
-    struct tlv_box* box = (struct tlv_box*)malloc(sizeof(struct tlv_box));
+	struct tlv_box *box = (struct tlv_box *)malloc(sizeof(struct tlv_box));
 	if (!box)
 		return NULL;
 
 	memset(box, 0, sizeof(*box));
-    INIT_LIST_HEAD(&box->tlv_list);
+	INIT_LIST_HEAD(&box->tlv_list);
 
-    return box;
+	return box;
 }
 
 int tlv_box_put_raw(struct tlv_box *box, uint16_t type, uint16_t length, const void *value)
@@ -95,8 +95,11 @@ int inline tlv_box_put_string(struct tlv_box *box, uint16_t type, char *value)
 	return tlv_box_put_raw(box, type, strlen(value), value);
 }
 
-int inline tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object)
+int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object)
 {
+	int err;
+	if ((err = tlv_box_serialize(object)))
+		return err;
 	return tlv_box_put_raw(box, type, tlv_box_get_size(object), tlv_box_get_buffer(object));
 }
 
