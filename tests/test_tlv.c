@@ -30,9 +30,6 @@
 int main(int argc, char const *argv[])
 {
     struct tlv_box *box = tlv_box_create();
-    tlv_box_put_u8(box, TEST_TYPE_1, 'x');
-    tlv_box_put_u16(box, TEST_TYPE_2, (short)2);
-    tlv_box_put_u32(box, TEST_TYPE_3, (int)3);
     tlv_box_put_string(box, TEST_TYPE_7, (char *)"hello world !");
     unsigned char array[6] = {1, 2, 3, 4, 5, 6};
     tlv_box_put_raw(box,TEST_TYPE_8, 6, array);
