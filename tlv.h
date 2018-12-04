@@ -17,33 +17,33 @@
 #include "list.h"
 
 struct tlv {
+	uint32_t id;
 	struct list_head list;
 	uint16_t type;
 	uint16_t length;
 	void *value;
 };
 
-struct id_tlv {
-	uint32_t id;
-	uint16_t type;
-	uint16_t length;
-	void *value;
-};
-
+#define SERIAL_NORMAL 0
+#define SERIAL_WITH_ID 1
+#define SERIAL_EACH_WITH_ID 2
 struct tlv_box {
+	uint32_t id;
+	uint32_t count;
+	uint32_t how;
 	struct list_head tlv_list;
 	void *serialized_buffer;
 	int serialized_len;
 };
 
-#define tlv_box_for_each_tlv(box, tlv, _type, _len, _value)                                           \
-	for (tlv = list_entry((&(box)->tlv_list)->next, typeof(*tlv), list); _len = tlv->length,    \
-	    _value = tlv->value, _type = tlv->type, &tlv->list != (&(box)->tlv_list);                \
+#define tlv_box_for_each_tlv(box, tlv, _type, _len, _value)                                        \
+	for (tlv = list_entry((&(box)->tlv_list)->next, typeof(*tlv), list); _len = tlv->length,   \
+	    _value = tlv->value, _type = tlv->type, &tlv->list != (&(box)->tlv_list);              \
 	     tlv = list_entry(tlv->list.next, typeof(*tlv), list))
 
 void tlv_box_init(struct tlv_box *box);
 struct tlv_box *tlv_box_create();
-struct tlv_box *tlv_box_parse(struct tlv_box *_box, void *buffer,int buffersize);
+int tlv_box_parse(struct tlv_box *_box, void *buffer,int buffersize);
 void tlv_box_destroy(struct tlv_box *box);
 
 int tlv_box_putobject(struct tlv_box *box, uint16_t type, void *value, uint16_t length);

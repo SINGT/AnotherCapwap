@@ -10,9 +10,8 @@ void tlv_box_init(struct tlv_box *box)
 	if (!box)
 		return;
 
+	memset(box, 0, sizeof(*box));
 	INIT_LIST_HEAD(&box->tlv_list);
-	box->serialized_buffer = NULL;
-	box->serialized_len = 0;
 }
 
 struct tlv_box *tlv_box_create()
@@ -44,29 +43,61 @@ int tlv_box_put_raw(struct tlv_box *box, uint16_t type, uint16_t length, const v
 	memcpy(tlv->value, value, length);
 	list_add_tail(&tlv->list, &box->tlv_list);
 	box->serialized_len += sizeof(tlv->type) + sizeof(tlv->length) + length;
+	box->count++;
 
 	return 0;
+}
+
+static uint8_t tlv_parse_u8(void *value)
+{
+	return *(uint8_t *)value;
+}
+
+static uint16_t tlv_parse_u16(void *value)
+{
+	uint16_t tmp;
+	memcpy(&tmp, value, sizeof(uint16_t));
+	return htons(tmp);
+}
+
+static uint32_t tlv_parse_u32(void *value)
+{
+	uint32_t tmp;
+	memcpy(&tmp, value, sizeof(uint32_t));
+	return htonl(tmp);
+}
+
+void tlv_box_set_how(struct tlv_box *box, uint32_t how)
+{
+	box->how = how;
 }
 
 /**
  * Parse a TLV format message to struct tlv_box
  */
-struct tlv_box *tlv_box_parse(struct tlv_box *_box, void *buffer, int buffersize)
+int tlv_box_parse(struct tlv_box *box, void *buffer, int buffersize)
 {
-	struct tlv_box *box = _box ? _box : tlv_box_create();
 	struct tlv *tlv, *tmp;
 	int offset = 0;
 	int old_len = box->serialized_len;
 	int i = 0;
 
+	if (box->how & SERIAL_WITH_ID) {
+		box->id = tlv_parse_u32(buffer);
+		offset += sizeof(uint32_t);
+	}
 	while (offset < buffersize) {
-		uint16_t type = (*(uint16_t *)(buffer + offset));
+		if (box->how & SERIAL_EACH_WITH_ID) {
+			tlv->id = tlv_parse_u32(buffer + offset);
+			offset += sizeof(uint32_t);
+		}
+		uint16_t type = tlv_parse_u16(buffer + offset);
 		offset += sizeof(uint16_t);
-		uint16_t length = (*(uint16_t *)(buffer + offset));
+		uint16_t length = tlv_parse_u16(buffer + offset);
 		offset += sizeof(uint16_t);
-		if (tlv_box_put_raw(box, ntohs(type), ntohs(length), buffer + offset))
+		if (tlv_box_put_raw(box, type, length, buffer + offset))
 			goto fail;
-		offset += ntohs(length);
+		offset += length;
 		i++;
 	}
 
@@ -85,8 +116,6 @@ fail:
 		free(tlv);
 		i--;
 	}
-	if (!_box)
-		free(box);
 	return NULL;
 }
 
@@ -131,11 +160,25 @@ int tlv_box_get_size(struct tlv_box *box)
 	return box->serialized_len;
 }
 
+#define TLV_BOX_PUT_U16(buffer, offset, value)                                                     \
+	do {                                                                                       \
+		uint16_t __value = htons(value);                                                   \
+		memcpy(buffer + offset, &__value, sizeof(uint16_t));                               \
+		offset += sizeof(uint16_t);                                                        \
+	} while (0)
+#define TLV_BOX_PUT_U32(buffer, offset, value)                                                     \
+	do {                                                                                       \
+		uint32_t __value = htons(value);                                                   \
+		memcpy(buffer + offset, &__value, sizeof(uint32_t));                               \
+		offset += sizeof(uint32_t);                                                        \
+	} while (0)
+
 int tlv_box_serialize(struct tlv_box *box)
 {
 	int offset = 0;
 	unsigned char *buffer;
 	struct tlv *tlv;
+	uint32_t id;
 	uint16_t type;
 	uint16_t length;
 
@@ -143,16 +186,23 @@ int tlv_box_serialize(struct tlv_box *box)
 		return -EINVAL;
 	}
 
+	if (box->how &SERIAL_WITH_ID)
+		box->serialized_len += sizeof(box->id);
+	else if (box->how & SERIAL_EACH_WITH_ID)
+		box->serialized_len += box->count * sizeof(tlv->id);
+
 	if (!(buffer = (unsigned char *)malloc(box->serialized_len)))
 		return -ENOMEM;
 
+	if (box->how & SERIAL_WITH_ID) {
+		TLV_BOX_PUT_U32(buffer, offset, box->id);
+	}
 	list_for_each_entry (tlv, &box->tlv_list, list) {
-		type = htons(tlv->type);
-		memcpy(buffer + offset, &type, sizeof(tlv->type));
-		offset += sizeof(tlv->type);
-		length = htons(tlv->length);
-		memcpy(buffer + offset, &length, sizeof(tlv->length));
-		offset += sizeof(tlv->length);
+		if (box->how & SERIAL_EACH_WITH_ID) {
+			TLV_BOX_PUT_U32(buffer, offset, tlv->id);
+		}
+		TLV_BOX_PUT_U16(buffer, offset, tlv->type);
+		TLV_BOX_PUT_U16(buffer, offset, tlv->length);
 		memcpy(buffer + offset, tlv->value, tlv->length);
 		offset += tlv->length;
 	}
@@ -171,21 +221,6 @@ struct tlv *tlv_box_find_type(struct tlv_box *box, uint16_t type)
 			return tlv;
 	}
 	return NULL;
-}
-
-int tlv_box_get_object(struct tlv_box *box, uint16_t type, struct tlv_box **object)
-{
-	struct tlv *tlv;
-	if (!box || !object)
-		return -EINVAL;
-
-	tlv = tlv_box_find_type(box, type);
-	if (!tlv)
-		*object = NULL;
-	else
-		*object = tlv_box_parse(NULL, tlv->value, tlv->length);
-
-	return 0;
 }
 
 void tlv_box_print(struct tlv_box *box)
