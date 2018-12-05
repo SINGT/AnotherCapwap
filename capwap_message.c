@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "capwap_message.h"
+#include "capwap_common.h"
 #include "CWProtocol.h"
 #include "network.h"
 #include "tlv.h"
@@ -29,6 +30,28 @@ uint32_t cwmsg_parse_u32(void *value)
 	uint32_t tmp;
 	memcpy(&tmp, value, sizeof(uint32_t));
 	return htonl(tmp);
+}
+
+void cwmsg_put_u8(void *buffer, int *offset, uint8_t value)
+{
+	*(uint8_t *)(buffer + *offset) = value;
+	*offset += sizeof(uint8_t);
+}
+
+void cwmsg_put_u16(void *buffer, int *offset, uint16_t value)
+{
+	uint16_t tmp = htons(value);
+
+	memcpy(buffer + *offset, &tmp, sizeof(uint16_t));
+	*offset += sizeof(uint16_t);
+}
+
+void cwmsg_put_u32(void *buffer, int *offset, uint32_t value)
+{
+	uint32_t tmp = htonl(value);
+
+	memcpy(buffer + *offset, &tmp, sizeof(uint32_t));
+	*offset += sizeof(uint32_t);
 }
 
 void cwmsg_protohdr_parse(void *buff, struct cw_protohdr *header)
@@ -274,3 +297,52 @@ int cwmsg_parse_vendor_spec(struct cw_wtp_vendor_spec *vendor, void *value, uint
 	return 0;
 }
 
+/*****************************************************************************/
+
+int cwmsg_assemble_ac_descriptor(struct cw_ctrlmsg *msg)
+{
+	struct cw_ac_descriptor desc = {0};
+	int ac_descriptor_len = 12;
+	void *ac_descriptor_buff;
+	struct tlv_box *elem = tlv_box_create();
+	int offset = 0;
+
+	if (!elem)
+		return -ENOMEM;
+
+	desc.station_num = 0;
+	desc.station_limit = 256;
+	desc.active_aps = 0;
+	desc.max_aps = 256;
+	desc.security = 0;
+	desc.r_mac = 2;
+	desc.dtls = 2;
+	if (get_hardware(desc.hardware_version, sizeof(desc.hardware_version)))
+		strncpy(desc.hardware_version, "AC", sizeof(desc.hardware_version));
+	if (get_version(desc.software_version, sizeof(desc.software_version)))
+		strncpy(desc.software_version, "Openwrt", sizeof(desc.software_version));
+
+	tlv_box_set_how(elem, SERIAL_EACH_WITH_ID);
+	if (tlv_box_put_string(elem, CW_AC_HARDWARE_VERSION, desc.hardware_version) ||
+	    tlv_box_put_string(elem, CW_AC_SOFTWARE_VERSION, desc.software_version) ||
+	    tlv_box_serialize(elem))
+		return -ENOMEM;
+
+	ac_descriptor_len += tlv_box_get_size(elem);
+	ac_descriptor_buff = MALLOC(ac_descriptor_len);
+	if (!ac_descriptor_buff)
+		return -ENOMEM;
+	cwmsg_put_u16(ac_descriptor_buff, &offset, desc.station_num);
+	cwmsg_put_u16(ac_descriptor_buff, &offset, desc.station_limit);
+	cwmsg_put_u16(ac_descriptor_buff, &offset, desc.active_aps);
+	cwmsg_put_u16(ac_descriptor_buff, &offset, desc.max_aps);
+	cwmsg_put_u8(ac_descriptor_buff, &offset, desc.security);
+	cwmsg_put_u8(ac_descriptor_buff, &offset, desc.r_mac);
+	cwmsg_put_u8(ac_descriptor_buff, &offset, desc.reserved);
+	cwmsg_put_u8(ac_descriptor_buff, &offset, desc.dtls);
+	memcpy(ac_descriptor_buff + offset, tlv_box_get_buffer(elem), tlv_box_get_size(elem));
+	tlv_box_destroy(elem);
+
+	return cwmsg_ctrlmsg_add_element(msg, CW_MSG_ELEMENT_AC_DESCRIPTOR_CW_TYPE,
+					 ac_descriptor_len, ac_descriptor_buff);
+}

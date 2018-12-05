@@ -327,4 +327,7 @@ typedef struct {
 	char *valuePtr;
 } CWWTPVendorInfoValues;
 
+#define CW_AC_HARDWARE_VERSION 4
+#define CW_AC_SOFTWARE_VERSION 5
+
 #endif

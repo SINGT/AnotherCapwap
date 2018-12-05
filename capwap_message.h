@@ -97,11 +97,12 @@ static struct tlv *__internal_tlv  __attribute__((unused));
 #define cwmsg_ctrlmsg_for_each_elem(msg_ptr, type, len, value)                                      \
 	tlv_box_for_each_tlv(&(msg_ptr)->elem_box, __internal_tlv, type, len, value)
 
+#define VERSION_LEN 64
 struct cw_wtp_board_data {
 	uint32_t vendor_id;
-	uint8_t model[32];
-	uint8_t serial[32];
-	uint8_t hardware_version[32];
+	uint8_t model[VERSION_LEN];
+	uint8_t serial[VERSION_LEN];
+	uint8_t hardware_version[VERSION_LEN];
 	uint8_t mac[6];
 };
 int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, struct tlv_box *elem);
@@ -112,9 +113,9 @@ struct cw_wtp_descriptor {
 	uint8_t num_encrypt;
 	uint8_t encryp_wbid;
 	uint16_t encryp_cap;
-	uint8_t hardware_version[32];
-	uint8_t software_version[32];
-	uint8_t boot_version[32];
+	uint8_t hardware_version[VERSION_LEN];
+	uint8_t software_version[VERSION_LEN];
+	uint8_t boot_version[VERSION_LEN];
 };
 int cwmsg_parse_wtp_descriptor(struct cw_wtp_descriptor *desc, void *value, uint16_t len);
 
@@ -133,8 +134,8 @@ struct cw_ac_descriptor {
 	uint8_t r_mac;
 	uint8_t reserved;
 	uint8_t dtls;
-	char hardware_version[32];
-	char software_version[32];
+	char hardware_version[VERSION_LEN];
+	char software_version[VERSION_LEN];
 };
 
 #endif
