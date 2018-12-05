@@ -69,7 +69,7 @@ void cwmsg_ctrlmsg_destory(struct cw_ctrlmsg *msg);
 
 int cwmsg_ctrlmsg_parse(struct cw_ctrlmsg *ctrlmsg, void *msg, int len);
 void cwmsg_protohdr_set(struct cw_protohdr *header, int radio_id, int keep_alive);
-int cwmsg_ctrlmsg_add_element(struct cw_ctrlmsg *ctrlmsg, uint16_t type, uint16_t len, const void *value);
+int cwmsg_ctrlmsg_add_element(struct cw_ctrlmsg *ctrlmsg, uint16_t type, struct message *msg, int flag);
 int cwmsg_ctrlmsg_serialize(struct cw_ctrlmsg *ctrlmsg);
 void *cwmsg_ctrlmsg_get_buffer(struct cw_ctrlmsg *ctrlmsg);
 int cwmsg_ctrlmsg_get_total_len(struct cw_ctrlmsg *ctrlmsg);
@@ -127,5 +127,6 @@ struct cw_ac_descriptor {
 	char hardware_version[VERSION_LEN];
 	char software_version[VERSION_LEN];
 };
+int cwmsg_assemble_ac_descriptor(struct cw_ctrlmsg *msg);
 
 #endif

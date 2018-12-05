@@ -32,26 +32,32 @@ uint32_t cwmsg_parse_u32(void *value)
 	return htonl(tmp);
 }
 
-void cwmsg_put_u8(void *buffer, int *offset, uint8_t value)
+void cwmsg_put_u8(struct message *msg, uint8_t value)
 {
-	*(uint8_t *)(buffer + *offset) = value;
-	*offset += sizeof(uint8_t);
+	*(uint8_t *)(msg->data + msg->len) = value;
+	msg->len += sizeof(uint8_t);
 }
 
-void cwmsg_put_u16(void *buffer, int *offset, uint16_t value)
+void cwmsg_put_u16(struct message *msg, uint16_t value)
 {
 	uint16_t tmp = htons(value);
 
-	memcpy(buffer + *offset, &tmp, sizeof(uint16_t));
-	*offset += sizeof(uint16_t);
+	memcpy(msg->data + msg->len, &tmp, sizeof(uint16_t));
+	msg->len += sizeof(uint16_t);
 }
 
-void cwmsg_put_u32(void *buffer, int *offset, uint32_t value)
+void cwmsg_put_u32(struct message *msg, uint32_t value)
 {
 	uint32_t tmp = htonl(value);
 
-	memcpy(buffer + *offset, &tmp, sizeof(uint32_t));
-	*offset += sizeof(uint32_t);
+	memcpy(msg->data + msg->len, &tmp, sizeof(uint32_t));
+	msg->len += sizeof(uint32_t);
+}
+
+void cwmsg_put_raw(struct message *msg, void *value, size_t len)
+{
+	memcpy(msg->data + msg->len, value, len);
+	msg->len += len;
 }
 
 void cwmsg_protohdr_parse(void *buff, struct cw_protohdr *header)
@@ -122,12 +128,12 @@ void cwmsg_protohdr_set(struct cw_protohdr *header, int radio_id, int keep_alive
 	header->head.b.hlen = sizeof(*header) / 4;
 }
 
-int cwmsg_ctrlmsg_add_element(struct cw_ctrlmsg *ctrlmsg, uint16_t type, uint16_t len, const void *value)
+int cwmsg_ctrlmsg_add_element(struct cw_ctrlmsg *ctrlmsg, uint16_t type, struct message *msg, int flag)
 {
 	if (!ctrlmsg)
 		return -EINVAL;
 
-	return tlv_box_put_raw(&ctrlmsg->elem_box, type, len, value);
+	return tlv_box_put_raw(&ctrlmsg->elem_box, type, msg, flag);
 }
 
 int cwmsg_ctrlmsg_serialize(struct cw_ctrlmsg *ctrlmsg)
@@ -301,48 +307,57 @@ int cwmsg_parse_vendor_spec(struct cw_wtp_vendor_spec *vendor, void *value, uint
 
 int cwmsg_assemble_ac_descriptor(struct cw_ctrlmsg *msg)
 {
-	struct cw_ac_descriptor desc = {0};
-	int ac_descriptor_len = 12;
-	void *ac_descriptor_buff;
+	struct message ac_descriptor;
+	int total_len;
 	struct tlv_box *elem = tlv_box_create();
-	int offset = 0;
+	struct cw_ac_descriptor *desc = MALLOC(sizeof(*desc));
 
-	if (!elem)
+	if (!elem || !desc)
 		return -ENOMEM;
 
-	desc.station_num = 0;
-	desc.station_limit = 256;
-	desc.active_aps = 0;
-	desc.max_aps = 256;
-	desc.security = 0;
-	desc.r_mac = 2;
-	desc.dtls = 2;
-	if (get_hardware(desc.hardware_version, sizeof(desc.hardware_version)))
-		strncpy(desc.hardware_version, "AC", sizeof(desc.hardware_version));
-	if (get_version(desc.software_version, sizeof(desc.software_version)))
-		strncpy(desc.software_version, "Openwrt", sizeof(desc.software_version));
+	desc->station_num = 0;
+	desc->station_limit = 256;
+	desc->active_aps = 0;
+	desc->max_aps = 256;
+	desc->security = 0;
+	desc->r_mac = 2;
+	desc->dtls = 2;
+	if (get_hardware(desc->hardware_version, sizeof(desc->hardware_version)))
+		strncpy(desc->hardware_version, "AC", sizeof(desc->hardware_version));
+	if (get_version(desc->software_version, sizeof(desc->software_version)))
+		strncpy(desc->software_version, "Openwrt", sizeof(desc->software_version));
 
 	tlv_box_set_how(elem, SERIAL_EACH_WITH_ID);
-	if (tlv_box_put_string(elem, CW_AC_HARDWARE_VERSION, desc.hardware_version) ||
-	    tlv_box_put_string(elem, CW_AC_SOFTWARE_VERSION, desc.software_version) ||
-	    tlv_box_serialize(elem))
+	if (tlv_box_put_string(elem, CW_AC_HARDWARE_VERSION, desc->hardware_version,
+			       TLV_NOCPY | TLV_NOFREE) ||
+	    tlv_box_put_string(elem, CW_AC_SOFTWARE_VERSION, desc->software_version,
+			       TLV_NOCPY | TLV_NOFREE) ||
+	    tlv_box_serialize(elem)) {
+		tlv_box_destroy(elem);
+		free(desc);
 		return -ENOMEM;
+	}
 
-	ac_descriptor_len += tlv_box_get_size(elem);
-	ac_descriptor_buff = MALLOC(ac_descriptor_len);
-	if (!ac_descriptor_buff)
+	total_len = 12 + tlv_box_get_size(elem);
+	ac_descriptor.len = 0;
+	ac_descriptor.data = MALLOC(total_len);
+	if (!ac_descriptor.data) {
+		tlv_box_destroy(elem);
+		free(desc);
 		return -ENOMEM;
-	cwmsg_put_u16(ac_descriptor_buff, &offset, desc.station_num);
-	cwmsg_put_u16(ac_descriptor_buff, &offset, desc.station_limit);
-	cwmsg_put_u16(ac_descriptor_buff, &offset, desc.active_aps);
-	cwmsg_put_u16(ac_descriptor_buff, &offset, desc.max_aps);
-	cwmsg_put_u8(ac_descriptor_buff, &offset, desc.security);
-	cwmsg_put_u8(ac_descriptor_buff, &offset, desc.r_mac);
-	cwmsg_put_u8(ac_descriptor_buff, &offset, desc.reserved);
-	cwmsg_put_u8(ac_descriptor_buff, &offset, desc.dtls);
-	memcpy(ac_descriptor_buff + offset, tlv_box_get_buffer(elem), tlv_box_get_size(elem));
+	}
+	cwmsg_put_u16(&ac_descriptor, desc->station_num);
+	cwmsg_put_u16(&ac_descriptor, desc->station_limit);
+	cwmsg_put_u16(&ac_descriptor, desc->active_aps);
+	cwmsg_put_u16(&ac_descriptor, desc->max_aps);
+	cwmsg_put_u8(&ac_descriptor, desc->security);
+	cwmsg_put_u8(&ac_descriptor, desc->r_mac);
+	cwmsg_put_u8(&ac_descriptor, desc->reserved);
+	cwmsg_put_u8(&ac_descriptor, desc->dtls);
+	cwmsg_put_raw(&ac_descriptor, tlv_box_get_buffer(elem), tlv_box_get_size(elem));
 	tlv_box_destroy(elem);
+	free(desc);
 
 	return cwmsg_ctrlmsg_add_element(msg, CW_MSG_ELEMENT_AC_DESCRIPTOR_CW_TYPE,
-					 ac_descriptor_len, ac_descriptor_buff);
+					 &ac_descriptor, TLV_NOCPY);
 }

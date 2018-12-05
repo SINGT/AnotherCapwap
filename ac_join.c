@@ -81,8 +81,15 @@ error_request:
 static int capwap_send_join_response(struct capwap_wtp *wtp)
 {
 	struct cw_ctrlmsg *join_resp;
+	int err;
 
 	join_resp = cwmsg_ctrlmsg_malloc();
+	err = cwmsg_assemble_ac_descriptor(join_resp);
+	if (err) {
+		CWLog("Assemble ac descriptor error with %d", err);
+		return err;
+	}
+
 	return 0;
 }
 

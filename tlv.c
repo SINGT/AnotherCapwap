@@ -27,27 +27,54 @@ struct tlv_box *tlv_box_create()
 	return box;
 }
 
-int tlv_box_put_raw(struct tlv_box *box, uint16_t type, uint16_t length, const void *value)
+int tlv_box_put_raw(struct tlv_box *box, uint16_t type, struct message *msg, int flag)
 {
 	struct tlv *tlv;
 
-	if (!box || !value)
+	if (!box || !msg)
 		return -EINVAL;
 
 	tlv = (struct tlv *)calloc(1, sizeof(struct tlv));
 	if (!tlv)
 		return -ENOMEM;
 	tlv->type = type;
-	tlv->length = length;
-	tlv->value = malloc(length);
-	if (!tlv->value)
-		return -ENOMEM;
-	memcpy(tlv->value, value, length);
+	tlv->length = msg->len;
+
+	if (flag & TLV_NOCPY) {
+		tlv->value = msg->data;
+	} else {
+		tlv->value = malloc(msg->len);
+		if (!tlv->value)
+			return -ENOMEM;
+		memcpy(tlv->value, msg->data, msg->len);
+	}
+	tlv->flag = flag;
 	list_add_tail(&tlv->list, &box->tlv_list);
-	box->serialized_len += sizeof(tlv->type) + sizeof(tlv->length) + length;
+	box->serialized_len += sizeof(tlv->type) + sizeof(tlv->length) + tlv->length;
 	box->count++;
 
 	return 0;
+}
+
+int tlv_box_put_string(struct tlv_box *box, uint16_t type, char *value, int flag)
+{
+	struct message msg;
+
+	msg.data = value;
+	msg.len = strlen(value);
+	return tlv_box_put_raw(box, type, &msg, flag);
+}
+
+int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object, int flag)
+{
+	struct message msg;
+	int err = tlv_box_serialize(object);
+
+	if (err)
+		return err;
+	msg.data = tlv_box_get_buffer(object);
+	msg.len = tlv_box_get_size(object);
+	return tlv_box_put_raw(box, type, &msg, flag);
 }
 
 static uint8_t tlv_parse_u8(void *value)
@@ -127,26 +154,12 @@ fail:
 	return -ENOMEM;
 }
 
-int tlv_box_put_string(struct tlv_box *box, uint16_t type, char *value)
-{
-	return tlv_box_put_raw(box, type, strlen(value), value);
-}
-
-int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object)
-{
-	int err = tlv_box_serialize(object);
-
-	if (err)
-		return err;
-	return tlv_box_put_raw(box, type, tlv_box_get_size(object), tlv_box_get_buffer(object));
-}
-
 void tlv_box_destroy(struct tlv_box *box)
 {
 	struct tlv *tlv, *tmp;
 
 	list_for_each_entry_safe(tlv, tmp, &box->tlv_list, list) {
-		if (tlv->value)
+		if ((!(tlv->flag & TLV_NOFREE)) && tlv->value)
 			free(tlv->value);
 		list_del(&tlv->list);
 		free(tlv);
