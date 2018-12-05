@@ -552,7 +552,7 @@ struct device_attr *find_dev_attr_by_mac(const char *mac)
 		return NULL;
 
 	pthread_mutex_lock(&dev_list_mutex);
-	list_for_each_entry (attr, &device_list, list) {
+	list_for_each_entry(attr, &device_list, list) {
 		if (attr->mac && !strcmp(attr->mac, mac)) {
 			pthread_mutex_unlock(&dev_list_mutex);
 			return attr;
@@ -709,7 +709,7 @@ void uci_interface_free()
 	struct device_attr *device;
 	struct group_attr *group;
 
-	list_for_each_entry (device, &device_list, list) {
+	list_for_each_entry(device, &device_list, list) {
 		dev_attr_free(device);
 		free(device);
 	}

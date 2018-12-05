@@ -17,6 +17,7 @@ void tlv_box_init(struct tlv_box *box)
 struct tlv_box *tlv_box_create()
 {
 	struct tlv_box *box = (struct tlv_box *)malloc(sizeof(struct tlv_box));
+
 	if (!box)
 		return NULL;
 
@@ -38,7 +39,8 @@ int tlv_box_put_raw(struct tlv_box *box, uint16_t type, uint16_t length, const v
 		return -ENOMEM;
 	tlv->type = type;
 	tlv->length = length;
-	if (!(tlv->value = malloc(length)))
+	tlv->value = malloc(length);
+	if (!tlv->value)
 		return -ENOMEM;
 	memcpy(tlv->value, value, length);
 	list_add_tail(&tlv->list, &box->tlv_list);
@@ -56,6 +58,7 @@ static uint8_t tlv_parse_u8(void *value)
 static uint16_t tlv_parse_u16(void *value)
 {
 	uint16_t tmp;
+
 	memcpy(&tmp, value, sizeof(uint16_t));
 	return htons(tmp);
 }
@@ -63,6 +66,7 @@ static uint16_t tlv_parse_u16(void *value)
 static uint32_t tlv_parse_u32(void *value)
 {
 	uint32_t tmp;
+
 	memcpy(&tmp, value, sizeof(uint32_t));
 	return htonl(tmp);
 }
@@ -81,19 +85,23 @@ int tlv_box_parse(struct tlv_box *box, void *buffer, int buffersize)
 	int offset = 0;
 	int old_len = box->serialized_len;
 	int i = 0;
+	uint16_t type;
+	uint16_t length;
 
 	if (box->how & SERIAL_WITH_ID) {
 		box->id = tlv_parse_u32(buffer);
 		offset += sizeof(uint32_t);
+		box->serialized_len += sizeof(uint32_t);
 	}
 	while (offset < buffersize) {
 		if (box->how & SERIAL_EACH_WITH_ID) {
 			tlv->id = tlv_parse_u32(buffer + offset);
 			offset += sizeof(uint32_t);
+			box->serialized_len += sizeof(uint32_t);
 		}
-		uint16_t type = tlv_parse_u16(buffer + offset);
+		type = tlv_parse_u16(buffer + offset);
 		offset += sizeof(uint16_t);
-		uint16_t length = tlv_parse_u16(buffer + offset);
+		length = tlv_parse_u16(buffer + offset);
 		offset += sizeof(uint16_t);
 		if (tlv_box_put_raw(box, type, length, buffer + offset))
 			goto fail;
@@ -119,15 +127,16 @@ fail:
 	return -ENOMEM;
 }
 
-int inline tlv_box_put_string(struct tlv_box *box, uint16_t type, char *value)
+int tlv_box_put_string(struct tlv_box *box, uint16_t type, char *value)
 {
 	return tlv_box_put_raw(box, type, strlen(value), value);
 }
 
 int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object)
 {
-	int err;
-	if ((err = tlv_box_serialize(object)))
+	int err = tlv_box_serialize(object);
+
+	if (err)
 		return err;
 	return tlv_box_put_raw(box, type, tlv_box_get_size(object), tlv_box_get_buffer(object));
 }
@@ -135,7 +144,8 @@ int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object)
 void tlv_box_destroy(struct tlv_box *box)
 {
 	struct tlv *tlv, *tmp;
-	list_for_each_entry_safe (tlv, tmp, &box->tlv_list, list) {
+
+	list_for_each_entry_safe(tlv, tmp, &box->tlv_list, list) {
 		if (tlv->value)
 			free(tlv->value);
 		list_del(&tlv->list);
@@ -147,8 +157,6 @@ void tlv_box_destroy(struct tlv_box *box)
 		box->serialized_buffer = NULL;
 	}
 	free(box);
-
-	return;
 }
 
 void *tlv_box_get_buffer(struct tlv_box *box)
@@ -183,25 +191,24 @@ int tlv_box_serialize(struct tlv_box *box)
 	uint16_t type;
 	uint16_t length;
 
-	if (!box) {
+	if (!box)
 		return -EINVAL;
-	}
 
-	if (box->how &SERIAL_WITH_ID)
+	if (box->how & SERIAL_WITH_ID)
 		box->serialized_len += sizeof(box->id);
 	else if (box->how & SERIAL_EACH_WITH_ID)
 		box->serialized_len += box->count * sizeof(tlv->id);
 
-	if (!(buffer = (unsigned char *)malloc(box->serialized_len)))
+	buffer = malloc(box->serialized_len);
+	if (!buffer)
 		return -ENOMEM;
 
-	if (box->how & SERIAL_WITH_ID) {
+	if (box->how & SERIAL_WITH_ID)
 		TLV_BOX_PUT_U32(buffer, offset, box->id);
-	}
-	list_for_each_entry (tlv, &box->tlv_list, list) {
-		if (box->how & SERIAL_EACH_WITH_ID) {
+
+	list_for_each_entry(tlv, &box->tlv_list, list) {
+		if (box->how & SERIAL_EACH_WITH_ID)
 			TLV_BOX_PUT_U32(buffer, offset, tlv->id);
-		}
 		TLV_BOX_PUT_U16(buffer, offset, tlv->type);
 		TLV_BOX_PUT_U16(buffer, offset, tlv->length);
 		memcpy(buffer + offset, tlv->value, tlv->length);
@@ -229,11 +236,11 @@ void tlv_box_print(struct tlv_box *box)
 	struct tlv *tlv;
 	uint16_t i;
 
-	list_for_each_entry (tlv, &box->tlv_list, list) {
+	list_for_each_entry(tlv, &box->tlv_list, list) {
 		printf("{type %d, len %d, value: ", tlv->type, tlv->length);
-		for (i = 0; i < tlv->length; i++) {
+		for (i = 0; i < tlv->length; i++)
 			printf("0x%02hhx ", *(uint8_t *)(tlv->value + i));
-		}
+
 		printf("} -> ");
 	}
 	printf("end\n");

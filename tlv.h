@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include "list.h"
+#include "capwap_common.h"
 
 struct tlv {
 	uint32_t id;
@@ -54,7 +55,7 @@ int tlv_box_put_raw(struct tlv_box *box, uint16_t type, uint16_t length, const v
 int tlv_box_put_string(struct tlv_box *box, uint16_t type, char *value);
 int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object);
 
-int tlv_box_parse(struct tlv_box *_box, void *buffer,int buffersize);
+int tlv_box_parse(struct tlv_box *_box, void *buffer, int buffersize);
 int tlv_box_serialize(struct tlv_box *box);
 
 struct tlv *tlv_box_find_type(struct tlv_box *box, uint16_t type);

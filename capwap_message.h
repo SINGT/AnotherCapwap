@@ -2,6 +2,7 @@
 #define __CAPWAP_PROTOCOL_H__
 
 #include <stdint.h>
+#include "capwap_common.h"
 #include "tlv.h"
 
 struct client_msg {
@@ -57,17 +58,6 @@ struct cw_ctrlmsg {
 
 #define CAPWAP_HEADER_LEN(header) ((header).head.b.hlen * 4)
 #define CAPWAP_CONTROL_HEADER_LEN	sizeof(struct cw_ctrlhdr)
-
-#define MALLOC(n)	calloc(1, n)
-#define FREE(p) \
-	do {               \
-		if (p)         \
-			free(p);   \
-		p = NULL;      \
-	} while (0)
-
-#define min(a, b) ((a) < (b) ? (a) : (b))
-#define max(a, b) ((a) > (b) ? (a) : (b))
 
 void cwmsg_protohdr_parse(void *buff, struct cw_protohdr *header);
 void cwmsg_ctrlhdr_parse(void *msg, struct cw_ctrlhdr *ctrlhdr);
