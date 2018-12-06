@@ -5,11 +5,12 @@
 #include <netinet/in.h>
 #include <sys/time.h>
 #include <sys/un.h>
+#include <event2/event.h>
 
 #include "capwap_message.h"
 #include "CWProtocol.h"
 #include "uci_config.h"
-#include "network.h"
+#include "capwap_common.h"
 
 enum wtp_state {
 	IDLE,
@@ -56,7 +57,15 @@ struct capwap_wtp {
 	struct device_attr *attr;
 };
 
+uint8_t get_echo_interval(struct capwap_wtp *wtp);
+uint32_t get_idle_timeout(struct capwap_wtp *wtp);
+
 int capwap_discovery_state(int sock, struct cw_ctrlhdr *ctrl_hdr, struct client_msg *addr);
 int capwap_idle_to_join(struct capwap_wtp *wtp, struct cw_ctrlmsg *join_req);
+int capwap_join_to_configure(struct capwap_wtp *wtp, struct cw_ctrlmsg *con_req);
+int capwap_configure_to_data_check(struct capwap_wtp *wtp, struct cw_ctrlmsg *data_check_req);
+int capwap_run(struct capwap_wtp *wtp, struct cw_ctrlmsg *ctrlmsg);
+
+void capwap_data_channel(evutil_socket_t sock, short what, void *arg);
 
 #endif // _AC_MAINLOOP_H_

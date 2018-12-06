@@ -23,7 +23,7 @@ struct capwap_interface_message {
 #define AC_MAIN_INTERFACE "/tmp/WTP.00_00_00_00_00_00"
 
 int capwap_init_main_interface();
-void capwap_destory_main_interface();
+void capwap_destroy_main_interface(void);
 int capwap_init_wtp_interface(struct capwap_wtp *wtp);
 
 

@@ -158,7 +158,7 @@ int capwap_init_socket(int port, struct sockaddr_storage *client, int client_len
 
 	if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		CWCritLog("Can't create basic sock(%d)", errno);
-		return errno;
+		return -errno;
 	}
 
 	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
@@ -168,13 +168,13 @@ int capwap_init_socket(int port, struct sockaddr_storage *client, int client_len
 	listen_addr.sin_port = htons(port);
 	if (bind(sock, (struct sockaddr *)&listen_addr, sizeof(listen_addr))) {
 		CWCritLog("sock bind error(%d)", errno);
-		return errno;
+		return -errno;
 	}
 
 	if (client) {
 		if ((err = connect(sock, (struct sockaddr *)client, client_len)) < 0) {
 			CWCritLog("sock connect error(%d)", errno);
-			return errno;
+			return -errno;
 		}
 	}
 
@@ -191,17 +191,37 @@ static void hexdump(void *buff, int len)
 	printf("\n");
 }
 
-static int _capwap_send_ctrl_message(int sock, struct cw_ctrlmsg *ctrlmsg, struct sockaddr_storage *addr, int addr_len)
+int capwap_send_message(int sock, struct iovec *io, size_t iovlen, struct sockaddr_storage *addr, int addr_len)
 {
 	struct msghdr msg;
+
+	bzero(&msg, sizeof(struct msghdr));
+	if (addr) {
+		msg.msg_name = addr;
+		msg.msg_namelen = addr_len;
+	}
+	msg.msg_iov = io;
+	msg.msg_iovlen = iovlen;
+
+	while (sendmsg(sock, &msg, 0) < 0) {
+		if (errno == EINTR)
+			continue;
+		CWCritLog("Send ctrlmsg fail(%d): %s", errno, strerror(errno));
+		return -errno;
+	}
+	return 0;
+}
+
+static int _capwap_send_ctrl_message(int sock, struct cw_ctrlmsg *ctrlmsg, struct sockaddr_storage *addr, int addr_len)
+{
 	struct iovec io[2];
 	int err;
 
 	if (!ctrlmsg)
 		return -EINVAL;
 
-	bzero(&msg, sizeof(struct msghdr));
-	if ((err = cwmsg_ctrlmsg_serialize(ctrlmsg))) {
+	err = cwmsg_ctrlmsg_serialize(ctrlmsg);
+	if (err) {
 		CWCritLog("control message serialize failed(%d)", err);
 		return err;
 	}
@@ -212,25 +232,12 @@ static int _capwap_send_ctrl_message(int sock, struct cw_ctrlmsg *ctrlmsg, struc
 	io[1].iov_len = cwmsg_ctrlmsg_get_msg_len(ctrlmsg);
 	hexdump(io[1].iov_base, io[1].iov_len);
 
-	if (addr) {
-		msg.msg_name = addr;
-		msg.msg_namelen = addr_len;
-	}
-	msg.msg_iov = io;
-	msg.msg_iovlen = 2;
-
-	while ((err = sendmsg(sock, &msg, 0)) < 0) {
-		if (errno == EINTR)
-			continue;
-		CWCritLog("Send ctrlmsg fail(%d): %s", errno, strerror(errno));
-		return errno;
-	}
-	return 0;
+	return capwap_send_message(sock, io, 2, addr, addr_len);
 }
 
-int capwap_send_ctrl_message(int sock, struct cw_ctrlmsg *msg)
+int capwap_send_ctrl_message(struct capwap_wtp *wtp, struct cw_ctrlmsg *msg)
 {
-	return _capwap_send_ctrl_message(sock, msg, NULL, 0);
+	return _capwap_send_ctrl_message(wtp->ctrl_sock, msg, NULL, 0);
 }
 
 int capwap_send_ctrl_message_unconnected(int sock, struct cw_ctrlmsg *msg, struct sockaddr_storage *addr, int addr_len)
@@ -275,13 +282,13 @@ int capwap_init_interface_sock(char *path)
 	sock = socket(AF_LOCAL, SOCK_DGRAM, 0);
 	if (sock < 0) {
 		CWLog("Create AF_LOCAL socket failed with %d", errno);
-		return errno;
+		return -errno;
 	}
 
 	unlink(path);
-	if (bind(sock, &addr, sizeof(addr))) {
+	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr))) {
 		CWLog("Bind AF_LOCAL socket failed with %d", errno);
-		return errno;
+		return -errno;
 	}
 
 	return sock;

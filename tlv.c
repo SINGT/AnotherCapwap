@@ -103,17 +103,23 @@ void tlv_box_set_how(struct tlv_box *box, uint32_t how)
 	box->how = how;
 }
 
+static struct tlv *get_last_tlv(struct tlv_box *box)
+{
+	return list_entry(box->tlv_list.prev, struct tlv, list);
+}
+
 /**
  * Parse a TLV format message to struct tlv_box
  */
 int tlv_box_parse(struct tlv_box *box, void *buffer, int buffersize)
 {
+	struct message msg;
 	struct tlv *tlv, *tmp;
 	int offset = 0;
 	int old_len = box->serialized_len;
 	int i = 0;
 	uint16_t type;
-	uint16_t length;
+	uint32_t id;
 
 	if (box->how & SERIAL_WITH_ID) {
 		box->id = tlv_parse_u32(buffer);
@@ -122,17 +128,19 @@ int tlv_box_parse(struct tlv_box *box, void *buffer, int buffersize)
 	}
 	while (offset < buffersize) {
 		if (box->how & SERIAL_EACH_WITH_ID) {
-			tlv->id = tlv_parse_u32(buffer + offset);
+			id = tlv_parse_u32(buffer + offset);
 			offset += sizeof(uint32_t);
 			box->serialized_len += sizeof(uint32_t);
 		}
 		type = tlv_parse_u16(buffer + offset);
 		offset += sizeof(uint16_t);
-		length = tlv_parse_u16(buffer + offset);
+		msg.len = tlv_parse_u16(buffer + offset);
 		offset += sizeof(uint16_t);
-		if (tlv_box_put_raw(box, type, length, buffer + offset))
+		msg.data = buffer + offset;
+		if (tlv_box_put_raw(box, type, &msg, 0))
 			goto fail;
-		offset += length;
+		get_last_tlv(box)->id = id;
+		offset += msg.len;
 		i++;
 	}
 
@@ -200,9 +208,6 @@ int tlv_box_serialize(struct tlv_box *box)
 	int offset = 0;
 	unsigned char *buffer;
 	struct tlv *tlv;
-	uint32_t id;
-	uint16_t type;
-	uint16_t length;
 
 	if (!box)
 		return -EINVAL;

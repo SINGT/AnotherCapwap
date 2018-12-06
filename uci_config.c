@@ -416,7 +416,6 @@ void uci_option_to_wifi_attr(struct uci_option *o, struct wifi *wifi)
 	const struct attr_convert *convert = NULL;
 	struct wifi_attr *band;
 	const char *name = o->e.name;
-	int i = 0;
 
 	if (!strncmp(name, "2G_", 3))
 		band = &wifi->band[WIFI_2G];
@@ -707,7 +706,7 @@ clean_ctx:
 void uci_interface_free()
 {
 	struct device_attr *device;
-	struct group_attr *group;
+	// struct group_attr *group;
 
 	list_for_each_entry(device, &device_list, list) {
 		dev_attr_free(device);

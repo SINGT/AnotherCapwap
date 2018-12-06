@@ -17,6 +17,7 @@
 #include "CWProtocol.h"
 #include "ac_mainloop.h"
 #include "uci_config.h"
+#include "ac_interface.h"
 #include "CWLog.h"
 
 int gLoggingLevel = DEFAULT_LOGGING_LEVEL;
@@ -71,17 +72,20 @@ int main(int argc, char const *argv[])
 	struct event *new_ev;
 	int err = 0;
 
-	if (err = uci_interface_init()) {
+	err = uci_interface_init();
+	if (err) {
 		CWLog("Uci interface init error: %s", strerror(-err));
 		return err;
 	}
 
-	if ((err = capwap_init_main_interface())) {
+	err = capwap_init_main_interface();
+	if (err) {
 		CWLog("Capwap init main interface fail: %s", strerror(-err));
 		goto err_interface;
 	}
 
-	if ((sock = capwap_init_socket(CW_CONTROL_PORT, NULL, 0)) < 0) {
+	sock = capwap_init_socket(CW_CONTROL_PORT, NULL, 0);
+	if (sock < 0) {
 		CWCritLog("Can't create basic sock");
 		goto err_socket;
 	}
@@ -96,7 +100,7 @@ int main(int argc, char const *argv[])
 
 	close(sock);
 err_socket:
-	capwap_destory_main_interface();
+	capwap_destroy_main_interface();
 err_interface:
 	uci_interface_free();
 

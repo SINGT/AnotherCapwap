@@ -1,8 +1,8 @@
 #ifndef _UCI_CONFIG_H_
 #define _UCI_CONFIG_H_
 
-#include <uci.h>
 #include <pthread.h>
+#include <uci.h>
 #include "CWLog.h"
 #include "list.h"
 

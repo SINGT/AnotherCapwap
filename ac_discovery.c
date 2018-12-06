@@ -15,13 +15,6 @@
 #include "ac_mainloop.h"
 #include "CWLog.h"
 
-#define AC_NAME "my_ac"
-
-struct cw_elem_ipv4_addr {
-	uint32_t addr;
-	uint16_t wtp_count;
-}__attribute__((packed));
-
 static int capwap_new_client(struct client_msg *client)
 {
 	pthread_t thread;
@@ -64,14 +57,10 @@ static int capwap_new_client(struct client_msg *client)
 static int capwap_send_discovery_response(int sock, struct cw_ctrlhdr *ctrl_hdr, struct client_msg *client)
 {
 	struct cw_ctrlmsg *discovery = cwmsg_ctrlmsg_new(CW_MSG_TYPE_VALUE_DISCOVERY_RESPONSE, ctrl_hdr->seq_num);
-	struct cw_elem_ipv4_addr ipv4;
 
 	CWLog("%s", __func__);
-	cwmsg_ctrlmsg_add_element(discovery, CW_MSG_ELEMENT_AC_NAME_CW_TYPE, strlen(AC_NAME), AC_NAME);
-
-	ipv4.addr = inet_addr("192.168.5.1");
-	ipv4.wtp_count = 0;
-	cwmsg_ctrlmsg_add_element(discovery, CW_MSG_ELEMENT_CW_CONTROL_IPV4_ADDRESS_CW_TYPE, sizeof(ipv4), &ipv4);
+	cwmsg_assemble_string(discovery, CW_MSG_ELEMENT_AC_NAME_CW_TYPE, AC_NAME, TLV_NOFREE);
+	cwmsg_assemble_ipv4_addr(discovery, CW_MSG_ELEMENT_CW_CONTROL_IPV4_ADDRESS_CW_TYPE, "br-lan");
 
 	return capwap_send_ctrl_message_unconnected(sock, discovery, &client->addr, client->addr_len);
 }
