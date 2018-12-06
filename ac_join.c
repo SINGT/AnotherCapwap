@@ -15,6 +15,9 @@ static int capwap_parse_join_request(struct capwap_wtp *wtp, struct cw_ctrlmsg *
 	uint16_t elem_len;
 	void *elem_value;
 
+	if (cwmsg_ctrlmsg_get_type(join_req) != CW_MSG_TYPE_VALUE_JOIN_REQUEST)
+		return -EINVAL;
+
 	join_elem = tlv_box_create();
 	if (!join_elem)
 		return -ENOMEM;
@@ -78,31 +81,37 @@ error_request:
 	return -EINVAL;
 }
 
-static int capwap_send_join_response(struct capwap_wtp *wtp)
+static int capwap_send_join_response(struct capwap_wtp *wtp, uint32_t result)
 {
 	struct cw_ctrlmsg *join_resp;
 	int err;
 
-	join_resp = cwmsg_ctrlmsg_malloc();
-	err = cwmsg_assemble_ac_descriptor(join_resp);
-	if (err) {
-		CWLog("Assemble ac descriptor error with %d", err);
-		return err;
-	}
+	join_resp = cwmsg_ctrlmsg_new(CW_MSG_TYPE_VALUE_JOIN_RESPONSE, wtp->seq_num);
+	if (!join_resp || cwmsg_assemble_ac_descriptor(join_resp) ||
+	    cwmsg_assemble_result_code(join_resp, result) ||
+	    cwmsg_assemble_string(join_resp, CW_MSG_ELEMENT_AC_NAME_CW_TYPE, AC_NAME, TLV_NOFREE) ||
+	    cwmsg_assemble_ipv4_addr(join_resp, CW_MSG_ELEMENT_CW_CONTROL_IPV4_ADDRESS_CW_TYPE, "br-lan"))
+		return -ENOMEM;
 
-	return 0;
+	err = capwap_send_ctrl_message(wtp, join_resp);
+	cwmsg_ctrlmsg_free(join_resp);
+
+	return err;
 }
 
 int capwap_idle_to_join(struct capwap_wtp *wtp, struct cw_ctrlmsg *join_req)
 {
 	int err;
+	uint32_t result;
 
 	if ((err = capwap_parse_join_request(wtp, join_req))) {
 		CWWarningLog("join request parse fail: %s", strerror(-err));
-		return err;
 	}
 
-	capwap_send_join_response(wtp);
+	if (err == 0)
+		result = CW_PROTOCOL_SUCCESS;
+	else
+		result = CW_PROTOCOL_FAILURE;
 
-	return 0;
+	return capwap_send_join_response(wtp, result);
 }

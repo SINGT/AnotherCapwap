@@ -39,7 +39,7 @@ static struct device_attr *find_device_attr_by_json(json_object *json)
 
 	return find_dev_attr_by_mac(dev_mac);
 }
-
+#if 0
 static int set_device_to_group(json_object *msg, void *arg)
 {
 	struct capwap_wtp *wtp = arg;
@@ -248,6 +248,7 @@ static int do_wtp_command(json_object *msg, void *arg)
 
 	return ac_do_wtp_command(wtp, command);
 }
+#endif
 
 static int ap_update(json_object *msg, void *arg)
 {
@@ -268,7 +269,6 @@ static int ap_update(json_object *msg, void *arg)
 
 	return 0;
 }
-
 static int delete_device(json_object *msg, void *arg)
 {
 	struct device_attr *attr = find_device_attr_by_json(msg);
@@ -301,10 +301,10 @@ static int delete_device(json_object *msg, void *arg)
 	}
 
 static struct json_operation device_operations[] = {
-	OPERATION(set_device_to_group),
-	OPERATION(set_device_config),
-	OPERATION(set_group_name),
-	OPERATION(do_wtp_command),
+	// OPERATION(set_device_to_group),
+	// OPERATION(set_device_config),
+	// OPERATION(set_group_name),
+	// OPERATION(do_wtp_command),
 	OPERATION(ap_update),
 };
 
@@ -328,7 +328,7 @@ int json_handle(const char *msg, struct json_operation *op, int op_num, void *ar
 	json_object *msg_obj, *cmd_obj;
 	struct json_operation *dev_op;
 	const char *command;
-	int i = 0, err;
+	int err;
 
 	CWLog("%s: %s\n", __func__, msg);
 
@@ -399,7 +399,7 @@ int capwap_init_wtp_interface(struct capwap_wtp *wtp)
 	return event_add(wtp->if_ev, NULL);
 }
 
-void capwap_destory_wtp_interface(struct capwap_wtp *wtp)
+void capwap_destroy_wtp_interface(struct capwap_wtp *wtp)
 {
 	unlink(wtp->if_path);
 }
@@ -447,7 +447,6 @@ static void capwap_main_interface(evutil_socket_t sock, short what, void *arg)
 
 static void *capwap_main_interface_loop(void *arg)
 {
-	struct sockaddr_un wum_addr = {0};
 	struct event_base *base;
 	struct event *ev;
 	int sock;
@@ -479,7 +478,7 @@ int capwap_init_main_interface()
 	return 0;
 }
 
-void capwap_destory_main_interface()
+void capwap_destroy_main_interface(void)
 {
 	unlink(AC_MAIN_INTERFACE);
 }

@@ -1,6 +1,11 @@
-#include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <errno.h>
 
 #include "CWLog.h"
 
@@ -92,4 +97,22 @@ int get_model(char *buff, int len)
 
 	return get_file_string("/sys/devices/factory-read/model_ver",
 			    "hexdump -c -n32 -s 65 /dev/mtdblock2", buff, len);
+}
+
+in_addr_t get_ipv4_addr(void)
+{
+	struct ifreq ifr;
+	int sock;
+	int err;
+
+	sock = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sock < 0)
+		return 0;
+
+	strcpy(ifr.ifr_name, "br-lan");
+	err = ioctl(sock, SIOCGIFADDR, &ifr);
+	if (err < 0)
+		return err;
+
+	return ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
 }

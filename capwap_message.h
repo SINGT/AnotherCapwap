@@ -65,7 +65,7 @@ void cwmsg_ctrlhdr_parse(void *msg, struct cw_ctrlhdr *ctrlhdr);
 struct cw_ctrlmsg *cwmsg_ctrlmsg_malloc();
 void cwmsg_ctrlmsg_free(struct cw_ctrlmsg *msg);
 struct cw_ctrlmsg *cwmsg_ctrlmsg_new(uint32_t type, uint8_t seq);
-void cwmsg_ctrlmsg_destory(struct cw_ctrlmsg *msg);
+void cwmsg_ctrlmsg_destroy(struct cw_ctrlmsg *msg);
 
 int cwmsg_ctrlmsg_parse(struct cw_ctrlmsg *ctrlmsg, void *msg, int len);
 void cwmsg_protohdr_set(struct cw_protohdr *header, int radio_id, int keep_alive);
@@ -82,6 +82,7 @@ uint16_t cwmsg_parse_u16(void *value);
 uint32_t cwmsg_parse_u32(void *value);
 
 void *capwap_manage_wtp(void *arg);
+struct capwap_wtp;
 
 static struct tlv *__internal_tlv  __attribute__((unused));
 #define cwmsg_ctrlmsg_for_each_elem(msg_ptr, type, len, value)                                      \
@@ -128,5 +129,17 @@ struct cw_ac_descriptor {
 	char software_version[VERSION_LEN];
 };
 int cwmsg_assemble_ac_descriptor(struct cw_ctrlmsg *msg);
+
+struct cw_elem_ipv4_addr {
+	in_addr_t addr;
+	uint16_t wtp_count;
+} __attribute__((packed));
+int cwmsg_assemble_ipv4_addr(struct cw_ctrlmsg *msg, uint16_t type, char *if_name);
+
+int cwmsg_assemble_result_code(struct cw_ctrlmsg *msg, uint32_t result);
+int cwmsg_assemble_string(struct cw_ctrlmsg *msg, uint16_t type, char *str, int flag);
+int cwmsg_assemble_timers(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp);
+int cwmsg_assemble_idle_timeout(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp);
+int cwmsg_assemble_wtp_fallback(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp);
 
 #endif

@@ -6,6 +6,7 @@
 #include <event2/event.h>
 #include <string.h>
 
+#include "ac_mainloop.h"
 #include "capwap_message.h"
 #include "capwap_common.h"
 #include "CWProtocol.h"
@@ -115,7 +116,7 @@ struct cw_ctrlmsg *cwmsg_ctrlmsg_new(uint32_t type, uint8_t seq)
 	return msg;
 }
 
-void cwmsg_ctrlmsg_destory(struct cw_ctrlmsg *msg)
+void cwmsg_ctrlmsg_destroy(struct cw_ctrlmsg *msg)
 {
 	return cwmsg_ctrlmsg_free(msg);
 }
@@ -134,6 +135,17 @@ int cwmsg_ctrlmsg_add_element(struct cw_ctrlmsg *ctrlmsg, uint16_t type, struct 
 		return -EINVAL;
 
 	return tlv_box_put_raw(&ctrlmsg->elem_box, type, msg, flag);
+}
+
+int cwmsg_ctrlmsg_add_raw_element(struct cw_ctrlmsg *ctrlmsg, uint16_t type, uint16_t length, void *value)
+{
+	struct message msg;
+
+	if (!ctrlmsg)
+		return -EINVAL;
+	msg.data = value;
+	msg.len = length;
+	return tlv_box_put_raw(&ctrlmsg->elem_box, type, &msg, 0);
 }
 
 int cwmsg_ctrlmsg_serialize(struct cw_ctrlmsg *ctrlmsg)
@@ -303,8 +315,6 @@ int cwmsg_parse_vendor_spec(struct cw_wtp_vendor_spec *vendor, void *value, uint
 	return 0;
 }
 
-/*****************************************************************************/
-
 int cwmsg_assemble_ac_descriptor(struct cw_ctrlmsg *msg)
 {
 	struct message ac_descriptor;
@@ -323,15 +333,13 @@ int cwmsg_assemble_ac_descriptor(struct cw_ctrlmsg *msg)
 	desc->r_mac = 2;
 	desc->dtls = 2;
 	if (get_hardware(desc->hardware_version, sizeof(desc->hardware_version)))
-		strncpy(desc->hardware_version, "AC", sizeof(desc->hardware_version));
+		strncpy(desc->hardware_version, AC_NAME, sizeof(desc->hardware_version));
 	if (get_version(desc->software_version, sizeof(desc->software_version)))
 		strncpy(desc->software_version, "Openwrt", sizeof(desc->software_version));
 
 	tlv_box_set_how(elem, SERIAL_EACH_WITH_ID);
-	if (tlv_box_put_string(elem, CW_AC_HARDWARE_VERSION, desc->hardware_version,
-			       TLV_NOCPY | TLV_NOFREE) ||
-	    tlv_box_put_string(elem, CW_AC_SOFTWARE_VERSION, desc->software_version,
-			       TLV_NOCPY | TLV_NOFREE) ||
+	if (tlv_box_put_string(elem, CW_AC_HARDWARE_VERSION, desc->hardware_version, TLV_NOFREE) ||
+	    tlv_box_put_string(elem, CW_AC_SOFTWARE_VERSION, desc->software_version, TLV_NOFREE) ||
 	    tlv_box_serialize(elem)) {
 		tlv_box_destroy(elem);
 		free(desc);
@@ -360,4 +368,59 @@ int cwmsg_assemble_ac_descriptor(struct cw_ctrlmsg *msg)
 
 	return cwmsg_ctrlmsg_add_element(msg, CW_MSG_ELEMENT_AC_DESCRIPTOR_CW_TYPE,
 					 &ac_descriptor, TLV_NOCPY);
+}
+
+int cwmsg_assemble_result_code(struct cw_ctrlmsg *msg, uint32_t result)
+{
+	struct message result_code;
+
+	result_code.data = &result;
+	result_code.len = sizeof(result);
+	return cwmsg_ctrlmsg_add_element(msg, CW_MSG_ELEMENT_RESULT_CODE_CW_TYPE, &result_code, 0);
+}
+
+int cwmsg_assemble_string(struct cw_ctrlmsg *msg, uint16_t type, char *str, int flag)
+{
+	struct message string;
+
+	string.data = str;
+	string.len = strlen(str);
+	return cwmsg_ctrlmsg_add_element(msg, type, &string, flag);
+}
+
+int cwmsg_assemble_ipv4_addr(struct cw_ctrlmsg *msg, uint16_t type, char *if_name)
+{
+	struct cw_elem_ipv4_addr addr;
+
+	addr.addr = get_ipv4_addr(if_name);
+	addr.wtp_count = 0;
+	return cwmsg_ctrlmsg_add_raw_element(msg, type, sizeof(addr), &addr);
+}
+
+int cwmsg_assemble_timers(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp)
+{
+	uint8_t timers[2];
+
+	timers[0] = 3;
+	timers[1] = get_echo_interval(wtp);
+
+	return cwmsg_ctrlmsg_add_raw_element(msg, CW_MSG_ELEMENT_CW_TIMERS_CW_TYPE, sizeof(timers),
+					     timers);
+}
+
+int cwmsg_assemble_idle_timeout(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp)
+{
+	uint32_t idle_timeout;
+
+	idle_timeout = htonl(get_idle_timeout(wtp));
+	return cwmsg_ctrlmsg_add_raw_element(msg, CW_MSG_ELEMENT_IDLE_TIMEOUT_CW_TYPE,
+					     sizeof(idle_timeout), &idle_timeout);
+}
+
+int cwmsg_assemble_wtp_fallback(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp)
+{
+	uint8_t led = wtp->attr->led;
+
+	return cwmsg_ctrlmsg_add_raw_element(msg, CW_MSG_ELEMENT_WTP_FALLBACK_CW_TYPE, sizeof(led),
+					     &led);
 }

@@ -285,7 +285,7 @@
 /*_________________________________________________________*/
 /*  *******************___VARIABLES___*******************  */
 
-typedef enum {
+enum CWProtocolResultCode {
 	CW_PROTOCOL_SUCCESS				= 0, //	Success
 	CW_PROTOCOL_FAILURE_AC_LIST			= 1, // AC List message MUST be present
 	CW_PROTOCOL_SUCCESS_NAT				= 2, // NAT detected
@@ -307,8 +307,8 @@ typedef enum {
 	CW_PROTOCOL_FAILURE_INVALID_STATE		= 18, // Message unexpected: invalid in current state
 	CW_PROTOCOL_FAILURE_UNRECOGNIZED_REQ		= 19, // Message unexpected: unrecognized request
 	CW_PROTOCOL_FAILURE_MISSING_MSG_ELEM		= 20, // Failure: missing mandatory message element
-	CW_PROTOCOL_FAILURE_UNRECOGNIZED_MSG_ELEM	= 21  // Failure: unrecognized message element
-} CWProtocolResultCode;
+	CW_PROTOCOL_FAILURE_UNRECOGNIZED_MSG_ELEM	= 21, // Failure: unrecognized message element
+};
 
 typedef struct {
 	int vendorIdentifier;

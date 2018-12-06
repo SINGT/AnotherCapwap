@@ -56,7 +56,7 @@ void tlv_box_set_how(struct tlv_box *box, uint32_t how);
  * TLV_NOCPY: don't copy message buffer, use the pointer directly.
  */
 #define TLV_NOCPY	BIT(0)
-#define TLV_NOFREE	BIT(1)
+#define TLV_NOFREE	(BIT(1) | BIT(0))
 int tlv_box_put_raw(struct tlv_box *box, uint16_t type, struct message *msg, int flag);
 int tlv_box_put_string(struct tlv_box *box, uint16_t type, char *value, int flag);
 int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object, int flag);

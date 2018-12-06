@@ -10,12 +10,9 @@
 #include "ac_mainloop.h"
 #include "CWLog.h"
 
-#define AC_NAME "my_ac"
-
-void capwap_main_fsm(evutil_socket_t sock, short what, void *arg)
+static void capwap_main_fsm(evutil_socket_t sock, short what, void *arg)
 {
 	uint8_t buff[1024];
-	char addr_str[INET_ADDRMAXLEN];
 	struct capwap_wtp *wtp = arg;
 	struct cw_ctrlmsg *ctrlmsg = cwmsg_ctrlmsg_malloc();
 	int msg_len;
@@ -34,33 +31,41 @@ void capwap_main_fsm(evutil_socket_t sock, short what, void *arg)
 		}
 
 		CWLog("receive %d from %s:%d", cwmsg_ctrlmsg_get_type(ctrlmsg), wtp->ip_addr, sock_get_port(&wtp->ctrl_addr));
-		switch (wtp->state)
-		{
-			case IDLE:
-				if ((err = capwap_idle_to_join(wtp, ctrlmsg))) {
-					CWLog("Error during enter join state: %d", err);
-				} else {
-					wtp->state = JOIN;
-				}
-				break;
-			case DISCOVERY:
-				break;
+		switch (wtp->state) {
+		case IDLE:
+			err = capwap_idle_to_join(wtp, ctrlmsg);
+			if (err) {
+				CWLog("Error during enter join state: %d", err);
+			} else {
+				wtp->state = JOIN;
+			}
+			break;
+		case DISCOVERY:
+			break;
 
-			case JOIN:
+		case JOIN:
+			err = capwap_join_to_configure(wtp, ctrlmsg);
+			if (!err)
+				wtp->state = CONFIGURE;
+			break;
+		case CONFIGURE:
+			err = capwap_configure_to_data_check(wtp, ctrlmsg);
+			if (!err)
+				wtp->state = DATA_CHECK;
+			break;
+		case DATA_CHECK:
+		case RUN:
+			err = capwap_run(wtp, ctrlmsg);
+			break;
+		case QUIT:
+			CWCritLog("wtp %s quit!", wtp->ip_addr);
+			event_base_loopbreak(wtp->ev_base);
+			break;
 
-				break;
-			case DATA_CHECK:
-				//
-				break;
-			case QUIT:
-				CWCritLog("wtp %s quit!", wtp->ip_addr);
-				event_base_loopbreak(wtp->ev_base);
-				break;
-
-			default:
-				CWCritLog("Unknown state %d, quit", wtp->state);
-				wtp->state = QUIT;
-				break;
+		default:
+			CWCritLog("Unknown state %d, quit", wtp->state);
+			wtp->state = QUIT;
+			break;
 		}
 
 		// Add again to reschedule timeout
@@ -83,7 +88,6 @@ void capwap_free_wtp(struct capwap_wtp *wtp)
 
 void *capwap_manage_wtp(void *arg)
 {
-	char addr_str[INET_ADDRMAXLEN];
 	struct capwap_wtp *wtp = arg;
 	int sock;
 
@@ -108,4 +112,14 @@ void *capwap_manage_wtp(void *arg)
 	free(arg);
 
 	return NULL;
+}
+
+uint8_t get_echo_interval(struct capwap_wtp *wtp)
+{
+	return (uint8_t)wtp->attr->ap_alive_time / CW_ECHO_MAX_RETRANSMIT_DEFAULT;
+}
+
+uint32_t get_idle_timeout(struct capwap_wtp *wtp)
+{
+	return (uint32_t)wtp->attr->client_idle_time;
 }
