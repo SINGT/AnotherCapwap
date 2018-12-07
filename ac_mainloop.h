@@ -31,10 +31,11 @@ enum wtp_state {
  */
 struct capwap_wtp {
 	struct sockaddr_storage ctrl_addr;
+	struct sockaddr_storage data_addr;
 	struct sockaddr_un wum_addr;
 	char ip_addr[INET_ADDRMAXLEN];
 	char if_path[32];
-	int ctrl_addr_len;
+	int wtp_addr_len;
 	int ctrl_sock;
 	int data_sock;
 	int if_sock;

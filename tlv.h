@@ -42,7 +42,6 @@ struct tlv_box {
 	    _value = tlv->value, _type = tlv->type, &tlv->list != (&(box)->tlv_list);              \
 	     tlv = list_entry(tlv->list.next, typeof(*tlv), list))
 
-void tlv_box_init(struct tlv_box *box);
 struct tlv_box *tlv_box_create();
 void tlv_box_destroy(struct tlv_box *box);
 

@@ -11,6 +11,7 @@
 
 char *sock_ntop_r(const struct sockaddr_storage *sa, char *str);
 int sock_get_port(struct sockaddr_storage *sa);
+void *sock_get_addr(struct sockaddr_storage *sa);
 int sock_cpy_addr_port(struct sockaddr_storage *sa1, const struct sockaddr_storage *sa2);
 void sock_set_port_cw(struct sockaddr_storage *sa, int port);
 int sock_cmp_port(const struct sockaddr_storage *sa1, const struct sockaddr_storage *sa2, socklen_t salen);

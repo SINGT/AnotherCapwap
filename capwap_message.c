@@ -87,14 +87,18 @@ struct cw_ctrlmsg *cwmsg_ctrlmsg_malloc()
 		return NULL;
 
 	memset(msg, 0, sizeof(*msg));
-	tlv_box_init(&msg->elem_box);
+	msg->elem_box = tlv_box_create();
+	if (!msg->elem_box) {
+		free(msg);
+		return NULL;
+	}
 
 	return msg;
 }
 
 void cwmsg_ctrlmsg_free(struct cw_ctrlmsg *msg)
 {
-	tlv_box_destroy(&msg->elem_box);
+	tlv_box_destroy(msg->elem_box);
 	if (msg->raw_hdr)
 		free(msg->raw_hdr);
 	free(msg);
@@ -134,7 +138,7 @@ int cwmsg_ctrlmsg_add_element(struct cw_ctrlmsg *ctrlmsg, uint16_t type, struct 
 	if (!ctrlmsg)
 		return -EINVAL;
 
-	return tlv_box_put_raw(&ctrlmsg->elem_box, type, msg, flag);
+	return tlv_box_put_raw(ctrlmsg->elem_box, type, msg, flag);
 }
 
 int cwmsg_ctrlmsg_add_raw_element(struct cw_ctrlmsg *ctrlmsg, uint16_t type, uint16_t length, void *value)
@@ -145,7 +149,7 @@ int cwmsg_ctrlmsg_add_raw_element(struct cw_ctrlmsg *ctrlmsg, uint16_t type, uin
 		return -EINVAL;
 	msg.data = value;
 	msg.len = length;
-	return tlv_box_put_raw(&ctrlmsg->elem_box, type, &msg, 0);
+	return tlv_box_put_raw(ctrlmsg->elem_box, type, &msg, 0);
 }
 
 int cwmsg_ctrlmsg_serialize(struct cw_ctrlmsg *ctrlmsg)
@@ -158,7 +162,7 @@ int cwmsg_ctrlmsg_serialize(struct cw_ctrlmsg *ctrlmsg)
 	if (!ctrlmsg->raw_hdr)
 		return -ENOMEM;
 
-	ctrlmsg->ctrlhdr.length = tlv_box_get_size(&ctrlmsg->elem_box);
+	ctrlmsg->ctrlhdr.length = 3 + tlv_box_get_size(ctrlmsg->elem_box);
 
 	val = ctrlmsg->raw_hdr;
 	*val++ = ntohl(ctrlmsg->protohdr.head.d32);
@@ -167,23 +171,28 @@ int cwmsg_ctrlmsg_serialize(struct cw_ctrlmsg *ctrlmsg)
 	*val = ctrlmsg->ctrlhdr.seq_num | (htons(ctrlmsg->ctrlhdr.length) << 8) |
 	       (ctrlmsg->ctrlhdr.flags << 24);
 
-	return tlv_box_serialize(&ctrlmsg->elem_box);
+	return tlv_box_serialize(ctrlmsg->elem_box);
 }
 
 void *cwmsg_ctrlmsg_get_buffer(struct cw_ctrlmsg *ctrlmsg)
 {
-	return tlv_box_get_buffer(&ctrlmsg->elem_box);
+	return tlv_box_get_buffer(ctrlmsg->elem_box);
 }
 
 int cwmsg_ctrlmsg_get_msg_len(struct cw_ctrlmsg *ctrlmsg)
 {
-	return tlv_box_get_size(&ctrlmsg->elem_box);
+	return tlv_box_get_size(ctrlmsg->elem_box);
 }
 
 int cwmsg_ctrlmsg_get_total_len(struct cw_ctrlmsg *ctrlmsg)
 {
 	return cwmsg_ctrlmsg_get_msg_len(ctrlmsg) + CAPWAP_HEADER_LEN(ctrlmsg->protohdr) +
 	       CAPWAP_CONTROL_HEADER_LEN;
+}
+
+uint8_t cwmsg_ctrlmsg_get_seqnum(struct cw_ctrlmsg *ctrlmsg)
+{
+	return ctrlmsg->ctrlhdr.seq_num;
 }
 
 int cwmsg_ctrlmsg_parse(struct cw_ctrlmsg *ctrlmsg, void *msg, int len)
@@ -197,7 +206,7 @@ int cwmsg_ctrlmsg_parse(struct cw_ctrlmsg *ctrlmsg, void *msg, int len)
 	parsed_len += CAPWAP_HEADER_LEN(ctrlmsg->protohdr);
 	cwmsg_ctrlhdr_parse(msg + parsed_len, &ctrlmsg->ctrlhdr);
 	parsed_len += CAPWAP_CONTROL_HEADER_LEN;
-	tlv_box_parse(&ctrlmsg->elem_box, msg + parsed_len, len - parsed_len);
+	tlv_box_parse(ctrlmsg->elem_box, msg + parsed_len, len - parsed_len);
 
 	if (cwmsg_ctrlmsg_get_total_len(ctrlmsg) != len) {
 		return -EINVAL;
@@ -228,13 +237,23 @@ void cwmsg_parse_raw(void *dst, uint16_t dst_len, void *value, uint16_t value_le
 	memcpy(dst, value, min(dst_len, value_len));
 }
 
-int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, struct tlv_box *elem)
+int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, void *elem_value, uint16_t elem_len)
 {
+	struct tlv_box *elem;
 	struct tlv *tlv;
 	uint16_t type;
 	uint16_t len;
 	void *value;
 
+	elem = tlv_box_create();
+	if (!elem)
+		return -ENOMEM;
+
+	tlv_box_set_how(elem, SERIAL_WITH_ID);
+	if (tlv_box_parse(elem, elem_value, elem_len)) {
+		CWLog("Invalid board data elem, ignore this join request");
+		return -EINVAL;
+	}
 	// TODO: Judge vendor ID?
 	tlv_box_for_each_tlv(elem, tlv, type, len, value) {
 		switch (type) {

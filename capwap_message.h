@@ -53,7 +53,7 @@ struct cw_ctrlmsg {
 	struct cw_ctrlhdr ctrlhdr;
 	void *raw_hdr; // header buffer for sending message
 	int raw_hdr_len;
-	struct tlv_box elem_box;
+	struct tlv_box *elem_box;
 };
 
 #define CAPWAP_HEADER_LEN(header) ((header).head.b.hlen * 4)
@@ -75,6 +75,7 @@ void *cwmsg_ctrlmsg_get_buffer(struct cw_ctrlmsg *ctrlmsg);
 int cwmsg_ctrlmsg_get_total_len(struct cw_ctrlmsg *ctrlmsg);
 int cwmsg_ctrlmsg_get_msg_len(struct cw_ctrlmsg *ctrlmsg);
 uint32_t cwmsg_ctrlmsg_get_type(struct cw_ctrlmsg *msg);
+uint8_t cwmsg_ctrlmsg_get_seqnum(struct cw_ctrlmsg *ctrlmsg);
 char *cwmsg_parse_string(void *value, uint16_t str_len);
 void cwmsg_parse_raw(void *dst, uint16_t dst_len, void *value, uint16_t len);
 uint8_t cwmsg_parse_u8(void *value);
@@ -86,17 +87,17 @@ struct capwap_wtp;
 
 static struct tlv *__internal_tlv  __attribute__((unused));
 #define cwmsg_ctrlmsg_for_each_elem(msg_ptr, type, len, value)                                      \
-	tlv_box_for_each_tlv(&(msg_ptr)->elem_box, __internal_tlv, type, len, value)
+	tlv_box_for_each_tlv((msg_ptr)->elem_box, __internal_tlv, type, len, value)
 
 #define VERSION_LEN 64
 struct cw_wtp_board_data {
 	uint32_t vendor_id;
-	uint8_t model[VERSION_LEN];
+	char model[VERSION_LEN];
 	uint8_t serial[VERSION_LEN];
-	uint8_t hardware_version[VERSION_LEN];
+	char hardware_version[VERSION_LEN];
 	uint8_t mac[6];
 };
-int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, struct tlv_box *elem);
+int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, void *elem_value, uint16_t elem_len);
 
 struct cw_wtp_descriptor {
 	uint8_t max_radio;
@@ -104,9 +105,9 @@ struct cw_wtp_descriptor {
 	uint8_t num_encrypt;
 	uint8_t encryp_wbid;
 	uint16_t encryp_cap;
-	uint8_t hardware_version[VERSION_LEN];
-	uint8_t software_version[VERSION_LEN];
-	uint8_t boot_version[VERSION_LEN];
+	char hardware_version[VERSION_LEN];
+	char software_version[VERSION_LEN];
+	char boot_version[VERSION_LEN];
 };
 int cwmsg_parse_wtp_descriptor(struct cw_wtp_descriptor *desc, void *value, uint16_t len);
 

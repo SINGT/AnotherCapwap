@@ -1,7 +1,6 @@
 #include <string.h>
 #include <errno.h>
 
-#include "tlv.h"
 #include "capwap_message.h"
 #include "network.h"
 #include "CWProtocol.h"
@@ -10,7 +9,6 @@
 
 static int capwap_parse_join_request(struct capwap_wtp *wtp, struct cw_ctrlmsg *join_req)
 {
-	struct tlv_box *join_elem;
 	uint16_t elem_type;
 	uint16_t elem_len;
 	void *elem_value;
@@ -18,24 +16,14 @@ static int capwap_parse_join_request(struct capwap_wtp *wtp, struct cw_ctrlmsg *
 	if (cwmsg_ctrlmsg_get_type(join_req) != CW_MSG_TYPE_VALUE_JOIN_REQUEST)
 		return -EINVAL;
 
-	join_elem = tlv_box_create();
-	if (!join_elem)
-		return -ENOMEM;
-
 	cwmsg_ctrlmsg_for_each_elem(join_req, elem_type, elem_len, elem_value) {
 		switch (elem_type) {
 		case CW_MSG_ELEMENT_LOCATION_DATA_CW_TYPE:
 			wtp->location = cwmsg_parse_string(elem_value, elem_len);
 			break;
 		case CW_MSG_ELEMENT_WTP_BOARD_DATA_CW_TYPE:
-			tlv_box_init(join_elem);
-			tlv_box_set_how(join_elem, SERIAL_WITH_ID);
-			if (tlv_box_parse(join_elem, elem_value, elem_len)) {
-				CWLog("Invalid board data elem, ignore this join request");
+			if (cwmsg_parse_board_data(&wtp->board_data, elem_value, elem_len))
 				goto error_request;
-			}
-			cwmsg_parse_board_data(&wtp->board_data, join_elem);
-			tlv_box_destroy(join_elem);
 			break;
 		case CW_MSG_ELEMENT_SESSION_ID_CW_TYPE:
 			cwmsg_parse_raw(wtp->session_id, CW_SESSION_ID_LENGTH, elem_value, elem_len);
@@ -71,13 +59,11 @@ static int capwap_parse_join_request(struct capwap_wtp *wtp, struct cw_ctrlmsg *
 		}
 	}
 
-	tlv_box_destroy(join_elem);
 	return 0;
 
 error_request:
 	FREE(wtp->location);
 	FREE(wtp->name);
-	tlv_box_destroy(join_elem);
 	return -EINVAL;
 }
 

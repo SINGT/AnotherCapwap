@@ -31,7 +31,8 @@ void capwap_data_channel(evutil_socket_t sock, short what, void *arg)
 	}
 	cwmsg_protohdr_parse(buff, &protohdr);
 	if (protohdr.head.b.K) {
-		// Keep-alive response is the same with resquest
+		// Keep-alive response is always the same with resquest
+		CWDebugLog("Receive keep-alive");
 		capwap_send_keepalive(wtp, buff, msg_len);
 	}
 }

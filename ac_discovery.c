@@ -32,8 +32,8 @@ static int capwap_new_client(struct client_msg *client)
 
 	memset(arg, 0, sizeof(*arg));
 	memcpy(&arg->ctrl_addr, &client->addr, client->addr_len);
-	arg->ctrl_addr_len = client->addr_len;
-	if (!inet_ntop(client->addr.ss_family, &client->addr, arg->ip_addr, sizeof(arg->ip_addr))) {
+	arg->wtp_addr_len = client->addr_len;
+	if (!inet_ntop(client->addr.ss_family, sock_get_addr(&client->addr), arg->ip_addr, sizeof(arg->ip_addr))) {
 		CWLog("convert ip string failed with %d", errno);
 		free(arg);
 		return -EINVAL;
