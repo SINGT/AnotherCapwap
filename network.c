@@ -29,7 +29,6 @@ char *sock_ntop_r(const struct sockaddr_storage *sa, char *str)
 		}
 		return (str);
 	}
-#ifdef IPV6
 	case AF_INET6: {
 		struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)sa;
 
@@ -43,7 +42,6 @@ char *sock_ntop_r(const struct sockaddr_storage *sa, char *str)
 		}
 		return (str + 1);
 	}
-#endif
 
 	default:
 		snprintf(str, 128, "sock_ntop: unknown AF_xxx: %d", sa->ss_family);
@@ -67,6 +65,23 @@ int sock_get_port(struct sockaddr_storage *sa)
 	return -1;
 }
 
+void *sock_get_addr(struct sockaddr_storage *sa)
+{
+	switch (sa->ss_family) {
+	case AF_INET: {
+		struct sockaddr_in *sin = (struct sockaddr_in *)sa;
+
+		return &sin->sin_addr;
+	}
+	case AF_INET6: {
+		struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)sa;
+
+		return &sin6->sin6_addr;
+	}
+	}
+	return NULL;
+}
+
 int sock_cpy_addr_port(struct sockaddr_storage *sa1, const struct sockaddr_storage *sa2)
 {
 	sa1->ss_family = sa2->ss_family;
@@ -77,14 +92,12 @@ int sock_cpy_addr_port(struct sockaddr_storage *sa1, const struct sockaddr_stora
 			&((struct sockaddr_in *)sa2)->sin_addr, sizeof(struct in_addr)));
 		((struct sockaddr_in *)sa1)->sin_port = ((struct sockaddr_in *)sa2)->sin_port;
 		return 0;
-#ifdef IPV6
 	case AF_INET6:
 		(memcpy(&((struct sockaddr_in6 *)sa1)->sin6_addr,
 			&((struct sockaddr_in6 *)sa2)->sin6_addr, sizeof(struct in6_addr)));
 
 		(((struct sockaddr_in6 *)sa1)->sin6_port = ((struct sockaddr_in6 *)sa2)->sin6_port);
 		return 0;
-#endif
 	}
 	return (-1);
 }
@@ -95,17 +108,15 @@ void sock_set_port_cw(struct sockaddr_storage *sa, int port)
 	case AF_INET: {
 		struct sockaddr_in *sin = (struct sockaddr_in *)sa;
 
-		sin->sin_port = port;
+		sin->sin_port = htons(port);
 		return;
 	}
-#ifdef IPV6
 	case AF_INET6: {
 		struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)sa;
 
-		sin6->sin6_port = port;
+		sin6->sin6_port = htons(port);
 		return;
 	}
-#endif
 	}
 
 	return;
@@ -121,12 +132,10 @@ int sock_cmp_port(const struct sockaddr_storage *sa1, const struct sockaddr_stor
 		return (memcmp(&((struct sockaddr_in *)sa1)->sin_port,
 			       &((struct sockaddr_in *)sa2)->sin_port,
 			       sizeof(((struct sockaddr_in *)sa1)->sin_port)));
-#ifdef IPV6
 	case AF_INET6:
 		return (memcmp(&((struct sockaddr_in6 *)sa1)->sin6_port,
 			       &((struct sockaddr_in6 *)sa2)->sin6_port,
 			       sizeof(((struct sockaddr_in6 *)sa1)->sin6_port)));
-#endif
 	}
 	return (-1);
 }
@@ -140,11 +149,9 @@ int sock_cmp_addr(const struct sockaddr_storage *sa1, const struct sockaddr_stor
 	case AF_INET:
 		return (memcmp(&((struct sockaddr_in *)sa1)->sin_addr,
 			       &((struct sockaddr_in *)sa2)->sin_addr, sizeof(struct in_addr)));
-#ifdef IPV6
 	case AF_INET6:
 		return (memcmp(&((struct sockaddr_in6 *)sa1)->sin6_addr,
 			       &((struct sockaddr_in6 *)sa2)->sin6_addr, sizeof(struct in6_addr)));
-#endif
 	}
 	return (-1);
 }

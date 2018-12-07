@@ -27,6 +27,6 @@ struct message {
 int get_version(char *buff, int len);
 int get_hardware(char *buff, int len);
 int get_model(char *buff, int len);
-in_addr_t get_ipv4_addr(void);
+in_addr_t get_ipv4_addr(char *if_name);
 
 #endif // _CAPWAP_COMMON_H_

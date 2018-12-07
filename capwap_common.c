@@ -99,7 +99,7 @@ int get_model(char *buff, int len)
 			    "hexdump -c -n32 -s 65 /dev/mtdblock2", buff, len);
 }
 
-in_addr_t get_ipv4_addr(void)
+in_addr_t get_ipv4_addr(char *if_name)
 {
 	struct ifreq ifr;
 	int sock;
@@ -109,7 +109,7 @@ in_addr_t get_ipv4_addr(void)
 	if (sock < 0)
 		return 0;
 
-	strcpy(ifr.ifr_name, "br-lan");
+	strcpy(ifr.ifr_name, if_name);
 	err = ioctl(sock, SIOCGIFADDR, &ifr);
 	if (err < 0)
 		return err;

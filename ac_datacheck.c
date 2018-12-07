@@ -58,7 +58,9 @@ int capwap_configure_to_data_check(struct capwap_wtp *wtp, struct cw_ctrlmsg *da
 		return err;
 	}
 
-	wtp->data_sock = capwap_init_socket(CW_DATA_PORT, &wtp->ctrl_addr, wtp->ctrl_addr_len);
+	sock_cpy_addr_port(&wtp->data_addr, &wtp->ctrl_addr);
+	sock_set_port_cw(&wtp->data_addr, sock_get_port(&wtp->ctrl_addr) + 1);
+	wtp->data_sock = capwap_init_socket(CW_DATA_PORT, &wtp->data_addr, wtp->wtp_addr_len);
 	if (wtp->data_sock < 0)
 		return wtp->data_sock;
 	wtp->data_ev = event_new(wtp->ev_base, wtp->data_sock, EV_READ | EV_PERSIST, capwap_data_channel, wtp);

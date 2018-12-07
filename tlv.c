@@ -5,15 +5,6 @@
 #include <arpa/inet.h>
 #include "tlv.h"
 
-void tlv_box_init(struct tlv_box *box)
-{
-	if (!box)
-		return;
-
-	memset(box, 0, sizeof(*box));
-	INIT_LIST_HEAD(&box->tlv_list);
-}
-
 struct tlv_box *tlv_box_create()
 {
 	struct tlv_box *box = (struct tlv_box *)malloc(sizeof(struct tlv_box));
