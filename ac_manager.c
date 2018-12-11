@@ -28,7 +28,7 @@ int ac_init_dev_attr(struct capwap_wtp *wtp)
 	if (!attr)
 		return -EINVAL;
 
-	attr->hardware_version = strdup(wtp->board_data.hardware_version);
+	attr->hardware_version = strdup(wtp->descriptor.hardware_version);
 	attr->firmware_version = strdup(wtp->descriptor.software_version);
 	attr->model = strdup(wtp->board_data.model);
 	attr->mac = raw_mac_to_string(wtp->board_data.mac);
@@ -54,7 +54,7 @@ int ac_update_dev_attr(struct capwap_wtp *wtp)
 
 	attr = wtp->attr;
 	FREE_STRING(attr->hardware_version);
-	attr->hardware_version = strdup(wtp->board_data.hardware_version);
+	attr->hardware_version = strdup(wtp->descriptor.hardware_version);
 	FREE_STRING(attr->firmware_version);
 	attr->firmware_version = strdup(wtp->descriptor.software_version);
 	FREE_STRING(attr->model);

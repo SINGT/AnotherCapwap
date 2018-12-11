@@ -229,6 +229,7 @@ static int set_common_uci_attr(const char *section, const char *option, const ch
 
 	if (value) {
 		err = uci_set(ctx, &attr_option);
+		CWCritLog("uci set %s.%s=%s", section, option, value, err);
 		if (err)
 			CWCritLog("uci set %s.%s=%s failed with %d", section, option, value, err);
 		return err;

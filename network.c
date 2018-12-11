@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "network.h"
 #include "capwap_message.h"
@@ -281,12 +282,13 @@ ssize_t capwap_recv_ctrl_message(int sock, void *buff, int len)
 int capwap_init_interface_sock(char *path)
 {
 	struct sockaddr_un addr = {0};
+	int flags;
 	int sock;
 
 	addr.sun_family = AF_LOCAL;
 	strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
 
-	sock = socket(AF_LOCAL, SOCK_DGRAM, 0);
+	sock = socket(AF_LOCAL, SOCK_STREAM, 0);
 	if (sock < 0) {
 		CWLog("Create AF_LOCAL socket failed with %d", errno);
 		return -errno;
@@ -295,6 +297,18 @@ int capwap_init_interface_sock(char *path)
 	unlink(path);
 	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr))) {
 		CWLog("Bind AF_LOCAL socket failed with %d", errno);
+		return -errno;
+	}
+
+	// Set sock as nonblocking
+	flags = fcntl(sock, F_GETFL, 0);
+	if (flags < 0) {
+		CWLog("F_GETFL error with %d", errno);
+		return -errno;
+	}
+	flags |= O_NONBLOCK;
+	if (fcntl(sock, F_SETFL, flags) < 0) {
+		CWLog("F_SETFL error with %d", errno);
 		return -errno;
 	}
 

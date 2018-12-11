@@ -4,7 +4,9 @@
 #include <strings.h>
 #include <arpa/inet.h>
 #include <errno.h>
-#include <event2/event.h>
+#include <event2/listener.h>
+#include <event2/bufferevent.h>
+#include <event2/buffer.h>
 #include <json-c/json.h>
 
 #include "ac_mainloop.h"
@@ -306,24 +308,28 @@ static struct json_operation device_operations[] = {
 	// OPERATION(set_group_name),
 	// OPERATION(do_wtp_command),
 	OPERATION(ap_update),
+	{NULL, NULL},
 };
 
 static struct json_operation ac_operations[] = {
 	OPERATION(delete_device),
+	{NULL, NULL},
 };
 
-static struct json_operation *find_operation(struct json_operation *op, int op_num, const char *name)
+static struct json_operation *find_operation(struct json_operation *op, const char *name)
 {
 	int i = 0;
 
-	for (i = 0; i < op_num; i++) {
+	if (!op || !name)
+		return NULL;
+	for (i = 0; op[i].name; i++) {
 		if (!strcmp(op[i].name, name))
 			return &op[i];
 	}
 	return NULL;
 }
 
-int json_handle(const char *msg, struct json_operation *op, int op_num, void *arg)
+int json_handle(const char *msg, struct json_operation *op, void *arg)
 {
 	json_object *msg_obj, *cmd_obj;
 	struct json_operation *dev_op;
@@ -341,7 +347,7 @@ int json_handle(const char *msg, struct json_operation *op, int op_num, void *ar
 		return -EINVAL;
 
 	command = json_object_get_string(cmd_obj);
-	dev_op = find_operation(op, op_num, command);
+	dev_op = find_operation(op, command);
 	if (!dev_op)
 		return -EINVAL;
 
@@ -350,34 +356,93 @@ int json_handle(const char *msg, struct json_operation *op, int op_num, void *ar
 	return err;
 }
 
-static void capwap_handle_json(evutil_socket_t sock, short what, void *arg)
+struct bufferevent_args {
+	struct json_operation *cmd;
+	void *args;
+};
+
+static void echo_event_cb(struct bufferevent *bev, short events, void *ctx)
 {
-	struct capwap_wtp *wtp = arg;
+	if (events & BEV_EVENT_ERROR)
+		perror("Error from bufferevent");
+	if (events & (BEV_EVENT_EOF | BEV_EVENT_ERROR)) {
+		bufferevent_free(bev);
+	}
+}
+
+static void accept_error_cb(struct evconnlistener *listener, void *ctx)
+{
+	struct event_base *base = evconnlistener_get_base(listener);
+	int err = EVUTIL_SOCKET_ERROR();
+
+	fprintf(stderr,	"Got an error %d (%s) on the listener. ",
+		err, evutil_socket_error_to_string(err));
+
+	event_base_loopexit(base, NULL);
+}
+
+static int capwap_main_handle_interface(struct capwap_interface_message *msg,
+					struct json_operation *op, void *buff, void *arg)
+{
+
+	switch (msg->cmd) {
+	case JSON_CMD:
+		return json_handle(buff, op, arg);
+	}
+
+	return 0;
+}
+
+static void capwap_recv_interface(struct bufferevent *bev, void *ctx)
+{
+	struct evbuffer *input = bufferevent_get_input(bev);
+	size_t buffer_len = evbuffer_get_length(input);
+	struct capwap_interface_message msg;
+	struct bufferevent_args *bv = ctx;
 	void *buff;
-	socklen_t addr_len;
 	int msg_len;
 	int err;
 
-	if (what & EV_READ) {
-		buff = MALLOC(JSON_BUFF_LEN);
-		addr_len = sizeof(wtp->wum_addr);
-		msg_len = capwap_recv_message(sock, buff, JSON_BUFF_LEN, (struct sockaddr *)&wtp->wum_addr, &addr_len);
-		if (msg_len <= 0) {
-			CWCritLog("AC interface %s receive message error", wtp->if_path);
-			FREE(buff);
-			return;
-		}
-		err = json_handle(buff, device_operations, ARRAY_SIZE(device_operations), wtp);
-		FREE(buff);
-		if (err) {
-			CWWarningLog("json_handle() returned with %d", err);
-			return;
-		}
+	if (buffer_len < sizeof(msg))
+		return;
+
+	evbuffer_copyout(input, &msg, sizeof(msg));
+	if (buffer_len < sizeof(msg) + msg.length)
+		return;
+
+	buff = malloc(msg.length);
+	if (!buff) {
+		CWLog("No memory for interface message");
+		return;
 	}
+	evbuffer_drain(input, sizeof(msg));
+	evbuffer_remove(input, buff, msg.length);
+
+	err = capwap_main_handle_interface(&msg, bv->cmd, buff, bv->args);
+	free(buff); // Always needs free.
+	if (err) {
+		CWWarningLog("json_handle() returned with %d", err);
+		return;
+	}
+
+	return;
+}
+
+static void accept_conn_cb(struct evconnlistener *listener, evutil_socket_t fd,
+			   struct sockaddr *address, int socklen, void *ctx)
+{
+	struct event_base *base = evconnlistener_get_base(listener);
+	struct bufferevent *bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
+
+	bufferevent_setcb(bev, capwap_recv_interface, NULL, echo_event_cb, ctx);
+	bufferevent_setwatermark(bev, EV_READ, sizeof(struct capwap_interface_message), 0);
+
+	bufferevent_enable(bev, EV_READ);
 }
 
 int capwap_init_wtp_interface(struct capwap_wtp *wtp)
 {
+	struct bufferevent_args *bv_args;
 	uint8_t *mac;
 	int sock;
 
@@ -393,73 +458,53 @@ int capwap_init_wtp_interface(struct capwap_wtp *wtp)
 		CWLog("create interface socket fail");
 		return sock;
 	}
-	wtp->if_sock = sock;
-	wtp->if_ev = event_new(wtp->ev_base, wtp->if_sock, EV_READ | EV_PERSIST, capwap_handle_json, wtp);
 
-	return event_add(wtp->if_ev, NULL);
+	bv_args = malloc(sizeof(*bv_args));
+	if (!bv_args)
+		return -ENOMEM;
+	bv_args->cmd = device_operations;
+	bv_args->args = wtp;
+	wtp->if_args = bv_args;
+	wtp->if_ev = evconnlistener_new(wtp->ev_base, accept_conn_cb, bv_args,
+				      LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE | LEV_OPT_THREADSAFE, -1, sock);
+	if (!wtp->if_ev) {
+		perror("Couldn't create listener");
+		return -errno;
+	};
+        evconnlistener_set_error_cb(wtp->if_ev, accept_error_cb);
+
+	return 0;
 }
 
 void capwap_destroy_wtp_interface(struct capwap_wtp *wtp)
 {
 	unlink(wtp->if_path);
-}
-
-static int capwap_main_handle_interface(void *buff)
-{
-	struct capwap_interface_message *msg = buff;
-
-	switch (msg->cmd) {
-	case JSON_CMD:
-		return json_handle(buff + sizeof(*msg), ac_operations, ARRAY_SIZE(ac_operations),
-				   NULL);
-	}
-
-	return 0;
-}
-
-static void capwap_main_interface(evutil_socket_t sock, short what, void *arg)
-{
-	struct sockaddr_un wum_addr = {0};
-	socklen_t addr_len;
-	void *buff;
-	int msg_len;
-	int err;
-
-	if (what & EV_READ) {
-		buff = MALLOC(JSON_BUFF_LEN);
-		addr_len = sizeof(wum_addr);
-		msg_len = capwap_recv_message(sock, buff, JSON_BUFF_LEN, (struct sockaddr *)&wum_addr, &addr_len);
-		if (msg_len <= 0) {
-			CWCritLog("AC main interface receive message error");
-			FREE(buff);
-			return;
-		}
-		err = capwap_main_handle_interface(buff);
-		FREE(buff);
-		if (err) {
-			CWWarningLog("json_handle() returned with %d", err);
-			return;
-		}
-	}
-
-	return;
+	free(wtp->if_args);
 }
 
 static void *capwap_main_interface_loop(void *arg)
 {
 	struct event_base *base;
-	struct event *ev;
+	struct evconnlistener *listener;
 	int sock;
+	struct bufferevent_args bv_args;
 
-	// pthread_detach(pthread_self());
+	pthread_detach(pthread_self());
 	if ((sock = capwap_init_interface_sock(AC_MAIN_INTERFACE)) < 0) {
 		CWCritLog("Create interface socket fail");
 		exit(-1);
 	}
-	base = event_base_new();
-	ev = event_new(base, sock, EV_READ | EV_PERSIST, capwap_main_interface, NULL);
-	event_add(ev, NULL);
+	bv_args.cmd = ac_operations;
+	bv_args.args = NULL;
 
+	base = event_base_new();
+	listener = evconnlistener_new(base, accept_conn_cb, &bv_args,
+				      LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE | LEV_OPT_THREADSAFE, -1, sock);
+	if (!listener) {
+		perror("Couldn't create listener");
+		exit(-1);
+	};
+        evconnlistener_set_error_cb(listener, accept_error_cb);
 	event_base_dispatch(base);
 
 	return NULL;

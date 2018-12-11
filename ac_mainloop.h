@@ -44,7 +44,8 @@ struct capwap_wtp {
 	struct event_base *ev_base;
 	struct event *ctrl_ev;
 	struct event *data_ev;
-	struct event *if_ev;
+	struct evconnlistener *if_ev;
+	void *if_args;
 
 	enum wtp_state state;
 	char *location;
@@ -68,5 +69,9 @@ int capwap_configure_to_data_check(struct capwap_wtp *wtp, struct cw_ctrlmsg *da
 int capwap_run(struct capwap_wtp *wtp, struct cw_ctrlmsg *ctrlmsg);
 
 void capwap_data_channel(evutil_socket_t sock, short what, void *arg);
+
+int capwap_init_main_interface(void);
+void capwap_destroy_main_interface(void);
+int capwap_init_wtp_interface(struct capwap_wtp *wtp);
 
 #endif // _AC_MAINLOOP_H_
