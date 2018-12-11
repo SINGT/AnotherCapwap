@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <event2/event.h>
+#include <event2/listener.h>
 
 #include "capwap_message.h"
 #include "CWProtocol.h"
@@ -79,6 +80,16 @@ static void capwap_main_fsm(evutil_socket_t sock, short what, void *arg)
 				wtp->state = DATA_CHECK;
 			break;
 		case DATA_CHECK:
+			err = capwap_init_wtp_interface(wtp);
+			if (err) {
+				CWLog("Init interface %s error", wtp->if_path);
+				wtp->state = QUIT;
+				break;
+			}
+			//TODO: send wifi configure here
+			wtp->attr->status = 1;
+			save_device_config(wtp->attr, 0);
+			goto wait_packet;
 		case RUN:
 			err = capwap_run(wtp, ctrlmsg);
 			goto wait_packet;
@@ -105,6 +116,7 @@ void capwap_free_wtp(struct capwap_wtp *wtp)
 {
 	event_free(wtp->ctrl_ev);
 	event_free(wtp->data_ev);
+	evconnlistener_free(wtp->if_ev);
 
 	FREE(wtp->location);
 	FREE(wtp->name);
