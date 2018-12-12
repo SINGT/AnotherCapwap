@@ -5,7 +5,7 @@
 #include <arpa/inet.h>
 #include "tlv.h"
 
-struct tlv_box *tlv_box_create()
+struct tlv_box *tlv_box_create(uint32_t how)
 {
 	struct tlv_box *box = (struct tlv_box *)malloc(sizeof(struct tlv_box));
 
@@ -14,6 +14,7 @@ struct tlv_box *tlv_box_create()
 
 	memset(box, 0, sizeof(*box));
 	INIT_LIST_HEAD(&box->tlv_list);
+	box->how = how;
 
 	return box;
 }
@@ -56,7 +57,7 @@ int tlv_box_put_string(struct tlv_box *box, uint16_t type, char *value, int flag
 	return tlv_box_put_raw(box, type, &msg, flag);
 }
 
-int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object, int flag)
+int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object)
 {
 	struct message msg;
 	int err = tlv_box_serialize(object);
@@ -65,7 +66,8 @@ int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object, 
 		return err;
 	msg.data = tlv_box_get_buffer(object);
 	msg.len = tlv_box_get_size(object);
-	return tlv_box_put_raw(box, type, &msg, flag);
+	object->how |= NOT_FREE_BUFFER;
+	return tlv_box_put_raw(box, type, &msg, TLV_NOCPY);
 }
 
 static uint8_t tlv_parse_u8(void *value)
@@ -87,11 +89,6 @@ static uint32_t tlv_parse_u32(void *value)
 
 	memcpy(&tmp, value, sizeof(uint32_t));
 	return htonl(tmp);
-}
-
-void tlv_box_set_how(struct tlv_box *box, uint32_t how)
-{
-	box->how = how;
 }
 
 static struct tlv *get_last_tlv(struct tlv_box *box)
@@ -158,13 +155,13 @@ void tlv_box_destroy(struct tlv_box *box)
 	struct tlv *tlv, *tmp;
 
 	list_for_each_entry_safe(tlv, tmp, &box->tlv_list, list) {
-		if ((!(tlv->flag & TLV_NOFREE)) && tlv->value)
+		if ((!(tlv->flag & TLV_NOFREE_BIT)) && tlv->value)
 			free(tlv->value);
 		list_del(&tlv->list);
 		free(tlv);
 	}
 
-	if (box->serialized_buffer) {
+	if (!(box->how & NOT_FREE_BUFFER) && box->serialized_buffer) {
 		free(box->serialized_buffer);
 		box->serialized_buffer = NULL;
 	}

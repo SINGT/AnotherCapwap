@@ -38,8 +38,14 @@ struct wifi {
 	struct wifi_attr band[WIFI_NUM];
 };
 
-#define ENCRYPTION_OPEN 0
-#define ENCRYPTION_WPA2_PSK 1
+#define ENCRYPTION_OPEN		0
+#define ENCRYPTION_WPA2_PSK	1
+
+// Device status
+#define DEV_OFFLINE	0
+#define DEV_RUNNING	1
+#define DEV_SETTING	2
+#define DEV_SET_ERROR	3
 
 struct device_attr {
 	char *name;

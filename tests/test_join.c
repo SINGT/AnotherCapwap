@@ -4,7 +4,7 @@ int main(int argc, char const *argv[])
 {
 	struct capwap_wtp wtp = {0};
 	struct cw_ctrlmsg *join;
-	struct tlv_box *box = tlv_box_create();
+	struct tlv_box *box = tlv_box_create(0);
 	int err;
 
 	join = cwmsg_ctrlmsg_malloc();

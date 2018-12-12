@@ -55,12 +55,14 @@ struct capwap_wtp {
 	struct cw_wtp_vendor_spec vendor_spec;
 	uint8_t session_id[CW_SESSION_ID_LENGTH];
 	uint32_t version;
+	struct wifi_info wifi[WIFI_NUM];
 
 	struct device_attr *attr;
 };
 
 uint8_t get_echo_interval(struct capwap_wtp *wtp);
 uint32_t get_idle_timeout(struct capwap_wtp *wtp);
+struct wifi_info *find_wifi_info(struct capwap_wtp *wtp, uint8_t radio_id, uint8_t wlan_id);
 
 int capwap_discovery_state(int sock, struct cw_ctrlhdr *ctrl_hdr, struct client_msg *addr);
 int capwap_idle_to_join(struct capwap_wtp *wtp, struct cw_ctrlmsg *join_req);

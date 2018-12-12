@@ -117,6 +117,8 @@ struct cw_wtp_vendor_spec {
 };
 int cwmsg_parse_vendor_spec(struct cw_wtp_vendor_spec *vendor, void *value, uint16_t len);
 
+int cwmsg_parse_wifi_info(struct capwap_wtp *wtp, void *value, uint16_t len);
+
 struct cw_ac_descriptor {
 	uint16_t station_num;
 	uint16_t station_limit;
@@ -142,5 +144,31 @@ int cwmsg_assemble_string(struct cw_ctrlmsg *msg, uint16_t type, char *str, int 
 int cwmsg_assemble_timers(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp);
 int cwmsg_assemble_idle_timeout(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp);
 int cwmsg_assemble_wtp_fallback(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp);
+
+#define SSID_MAX_LEN 32
+struct wifi_info {
+	uint8_t radio_id;
+	uint8_t wlan_id;
+	uint16_t capability;
+	uint8_t key_index;
+	uint8_t key_status;
+	uint16_t key_len;
+	uint8_t key[4];
+	uint8_t group_tsc[6];
+	uint8_t qos;
+	uint8_t auth_type;
+	uint8_t mac_mode;
+	uint8_t tunnel_mode;
+	uint8_t suppress_ssid;
+	uint8_t channel;
+	uint8_t country_code[2];
+	char ssid[SSID_MAX_LEN + 1];
+	uint8_t wpa;
+	char password[64];
+	uint8_t bssid[6];
+	uint8_t setted;
+};
+int cwmsg_assemble_add_wlan(struct cw_ctrlmsg *msg, struct wifi_info *wifi, struct capwap_wtp *wtp);
+int cwmsg_parse_wlan_config_response(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp);
 
 #endif

@@ -87,7 +87,7 @@ struct cw_ctrlmsg *cwmsg_ctrlmsg_malloc()
 		return NULL;
 
 	memset(msg, 0, sizeof(*msg));
-	msg->elem_box = tlv_box_create();
+	msg->elem_box = tlv_box_create(0);
 	if (!msg->elem_box) {
 		free(msg);
 		return NULL;
@@ -245,11 +245,10 @@ int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, void *elem_valu
 	uint16_t len;
 	void *value;
 
-	elem = tlv_box_create();
+	elem = tlv_box_create(SERIAL_WITH_ID);
 	if (!elem)
 		return -ENOMEM;
 
-	tlv_box_set_how(elem, SERIAL_WITH_ID);
 	if (tlv_box_parse(elem, elem_value, elem_len)) {
 		CWLog("Invalid board data elem, ignore this join request");
 		return -EINVAL;
@@ -268,6 +267,7 @@ int cwmsg_parse_board_data(struct cw_wtp_board_data *board_data, void *elem_valu
 
 	return 0;
 }
+
 int cwmsg_parse_wtp_descriptor(struct cw_wtp_descriptor *desc, void *value, uint16_t len)
 {
 	struct tlv_box *desc_elem;
@@ -283,9 +283,8 @@ int cwmsg_parse_wtp_descriptor(struct cw_wtp_descriptor *desc, void *value, uint
 	desc->encryp_wbid = cwmsg_parse_u8(value + offset++);
 	desc->encryp_cap = cwmsg_parse_u16(value + offset);
 	offset += sizeof(uint16_t);
-	if (!(desc_elem = tlv_box_create()))
+	if (!(desc_elem = tlv_box_create(SERIAL_EACH_WITH_ID)))
 		return -EINVAL;
-	tlv_box_set_how(desc_elem, SERIAL_EACH_WITH_ID);
 	if (tlv_box_parse(desc_elem, value + offset, len - offset)) {
 		tlv_box_destroy(desc_elem);
 		return -EINVAL;
@@ -313,10 +312,9 @@ int cwmsg_parse_vendor_spec(struct cw_wtp_vendor_spec *vendor, void *value, uint
 	uint16_t sub_len;
 	void *sub_value;
 
-	if (!(vendor_elem = tlv_box_create()))
+	if (!(vendor_elem = tlv_box_create(SERIAL_EACH_WITH_ID)))
 		return -ENOMEM;
 
-	tlv_box_set_how(vendor_elem, SERIAL_EACH_WITH_ID);
 	if (tlv_box_parse(vendor_elem, value, len)) {
 		tlv_box_destroy(vendor_elem);
 		return -EINVAL;
@@ -334,11 +332,35 @@ int cwmsg_parse_vendor_spec(struct cw_wtp_vendor_spec *vendor, void *value, uint
 	return 0;
 }
 
+int cwmsg_put_vendor_spec(struct cw_ctrlmsg *msg, struct tlv_box *vendor_elem)
+{
+	struct message elem;
+
+	vendor_elem->id = VENDOR_ID;
+	tlv_box_put_box(msg->elem_box, CW_MSG_ELEMENT_VENDOR_SPEC_PAYLOAD_BW_CW_TYPE, vendor_elem);
+}
+
+int cwmsg_parse_wifi_info(struct capwap_wtp *wtp, void *value, uint16_t len)
+{
+	uint16_t channel_freq;
+	uint8_t radio_id;
+
+	radio_id = cwmsg_parse_u8(value);
+	channel_freq = cwmsg_parse_u16(value + 2);
+	if (channel_freq >= 2400 && channel_freq <= 2500)
+		wtp->wifi[WIFI_2G].radio_id = radio_id;
+	else if (channel_freq >= 4000 && channel_freq <= 6000)
+		wtp->wifi[WIFI_5G].radio_id = radio_id;
+	else
+		return -EINVAL;
+	return 0;
+}
+
 int cwmsg_assemble_ac_descriptor(struct cw_ctrlmsg *msg)
 {
-	struct message ac_descriptor;
+	struct message message;
 	int total_len;
-	struct tlv_box *elem = tlv_box_create();
+	struct tlv_box *elem = tlv_box_create(SERIAL_EACH_WITH_ID);
 	struct cw_ac_descriptor *desc = MALLOC(sizeof(*desc));
 
 	if (!elem || !desc)
@@ -356,7 +378,6 @@ int cwmsg_assemble_ac_descriptor(struct cw_ctrlmsg *msg)
 	if (get_version(desc->software_version, sizeof(desc->software_version)))
 		strncpy(desc->software_version, "Openwrt", sizeof(desc->software_version));
 
-	tlv_box_set_how(elem, SERIAL_EACH_WITH_ID);
 	if (tlv_box_put_string(elem, CW_AC_HARDWARE_VERSION, desc->hardware_version, TLV_NOFREE) ||
 	    tlv_box_put_string(elem, CW_AC_SOFTWARE_VERSION, desc->software_version, TLV_NOFREE) ||
 	    tlv_box_serialize(elem)) {
@@ -366,27 +387,27 @@ int cwmsg_assemble_ac_descriptor(struct cw_ctrlmsg *msg)
 	}
 
 	total_len = 12 + tlv_box_get_size(elem);
-	ac_descriptor.len = 0;
-	ac_descriptor.data = MALLOC(total_len);
-	if (!ac_descriptor.data) {
+	message.len = 0;
+	message.data = MALLOC(total_len);
+	if (!message.data) {
 		tlv_box_destroy(elem);
 		free(desc);
 		return -ENOMEM;
 	}
-	cwmsg_put_u16(&ac_descriptor, desc->station_num);
-	cwmsg_put_u16(&ac_descriptor, desc->station_limit);
-	cwmsg_put_u16(&ac_descriptor, desc->active_aps);
-	cwmsg_put_u16(&ac_descriptor, desc->max_aps);
-	cwmsg_put_u8(&ac_descriptor, desc->security);
-	cwmsg_put_u8(&ac_descriptor, desc->r_mac);
-	cwmsg_put_u8(&ac_descriptor, desc->reserved);
-	cwmsg_put_u8(&ac_descriptor, desc->dtls);
-	cwmsg_put_raw(&ac_descriptor, tlv_box_get_buffer(elem), tlv_box_get_size(elem));
+	cwmsg_put_u16(&message, desc->station_num);
+	cwmsg_put_u16(&message, desc->station_limit);
+	cwmsg_put_u16(&message, desc->active_aps);
+	cwmsg_put_u16(&message, desc->max_aps);
+	cwmsg_put_u8(&message, desc->security);
+	cwmsg_put_u8(&message, desc->r_mac);
+	cwmsg_put_u8(&message, desc->reserved);
+	cwmsg_put_u8(&message, desc->dtls);
+	cwmsg_put_raw(&message, tlv_box_get_buffer(elem), tlv_box_get_size(elem));
 	tlv_box_destroy(elem);
 	free(desc);
 
 	return cwmsg_ctrlmsg_add_element(msg, CW_MSG_ELEMENT_AC_DESCRIPTOR_CW_TYPE,
-					 &ac_descriptor, TLV_NOCPY);
+					 &message, TLV_NOCPY);
 }
 
 int cwmsg_assemble_result_code(struct cw_ctrlmsg *msg, uint32_t result)
@@ -442,4 +463,73 @@ int cwmsg_assemble_wtp_fallback(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp)
 
 	return cwmsg_ctrlmsg_add_raw_element(msg, CW_MSG_ELEMENT_WTP_FALLBACK_CW_TYPE, sizeof(led),
 					     &led);
+}
+
+int cwmsg_parse_wlan_config_response(struct cw_ctrlmsg *msg, struct capwap_wtp *wtp)
+{
+	uint16_t elem_type;
+	uint16_t elem_len;
+	void *elem_value;
+	struct wifi_info *wifi;
+	int result;
+	uint8_t radio_id, wlan_id;
+
+	cwmsg_ctrlmsg_for_each_elem(msg, elem_type, elem_len, elem_value) {
+		switch (elem_type) {
+		case CW_MSG_ELEMENT_RESULT_CODE_CW_TYPE:
+			result = cwmsg_parse_u32(elem_value);
+			break;
+		case CW_MSG_ELEMENT_IEEE80211_ASSIGNED_WTP_BSSID_CW_TYPE:
+			radio_id = cwmsg_parse_u8(elem_value++);
+			wlan_id = cwmsg_parse_u8(elem_value++);
+			wifi = find_wifi_info(wtp, radio_id, wlan_id);
+			if (wifi)
+				cwmsg_parse_raw(wifi->bssid, sizeof(wifi->bssid), elem_value,
+						elem_len - 2);
+			break;
+		}
+	}
+	return result;
+}
+
+int cwmsg_assemble_add_wlan(struct cw_ctrlmsg *msg, struct wifi_info *wifi, struct capwap_wtp *wtp)
+{
+	struct message message;
+	uint16_t msg_len;
+
+	if (!msg || !wifi || !wtp)
+		return -EINVAL;
+
+	msg_len = 24 + strlen(wifi->ssid);
+	if (wtp->version > VERSION_001)
+		msg_len += 2;
+	message.len = 0;
+	message.data = MALLOC(msg_len);
+	if (!message.data)
+		return -ENOMEM;
+
+	cwmsg_put_u8(&message, wifi->radio_id);
+	cwmsg_put_u8(&message, wifi->wlan_id);
+	cwmsg_put_u16(&message, wifi->capability);
+	cwmsg_put_u8(&message, wifi->key_index);
+	cwmsg_put_u8(&message, wifi->key_status);
+	cwmsg_put_u16(&message, sizeof(wifi->key));
+	cwmsg_put_raw(&message, wifi->key, sizeof(wifi->key));
+	cwmsg_put_raw(&message, wifi->group_tsc, sizeof(wifi->group_tsc));
+	cwmsg_put_u8(&message, wifi->qos);
+	cwmsg_put_u8(&message, wifi->auth_type);
+	cwmsg_put_u8(&message, wifi->mac_mode);
+	cwmsg_put_u8(&message, wifi->tunnel_mode);
+	cwmsg_put_u8(&message, wifi->suppress_ssid);
+	cwmsg_put_u8(&message, wifi->channel);
+	if (wtp->version > VERSION_001)
+		cwmsg_put_raw(&message, wifi->country_code, sizeof(wifi->country_code));
+	cwmsg_put_raw(&message, wifi->ssid, strlen(wifi->ssid));
+
+	return  cwmsg_ctrlmsg_add_element(msg, CW_MSG_ELEMENT_IEEE80211_ADD_WLAN_CW_TYPE, &message, TLV_NOCPY);
+}
+
+int cwmsg_assemble_add_rsn(struct cw_ctrlmsg *msg, struct wifi_info *wifi, struct capwap_wtp *wtp)
+{
+	struct message message;
 }
