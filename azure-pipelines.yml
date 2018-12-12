@@ -8,6 +8,5 @@ pool:
 
 steps:
 - script: |
-    make
-    make -C tests
+    echo "build"
   displayName: 'make'
