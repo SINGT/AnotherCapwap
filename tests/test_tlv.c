@@ -13,19 +13,17 @@
 #define TEST_TYPE_8 0x08
 #define TEST_TYPE_9 0x09
 
-#define LOG(format,...) printf(format, ##__VA_ARGS__)
-
-
+#define LOG(format, ...) printf(format, ##__VA_ARGS__)
 
 int print_each_tlv(struct tlv_box *parsebox, struct tlv *tlv, uint16_t type, uint16_t length, void *value)
 {
 	int count = 1;
 	tlv_box_for_each_tlv (parsebox, tlv, type, length, value) {
 		printf("print_each_tlv--------tlv_box_for_each_tlv----------count=%d\n", count);
-	 	switch (type) {
+		switch (type) {
 		case TEST_TYPE_3:
 			printf("get data success and len=%d\n", length);
-			for(int i=0; i<length; i++)
+			for (int i = 0; i < length; i++)
 				printf("value=%d\t ", ((char *)value)[i]);
 			printf("\n");
 			break;
@@ -37,16 +35,16 @@ int print_each_tlv(struct tlv_box *parsebox, struct tlv *tlv, uint16_t type, uin
 			return -1;
 		}
 		count++;
-	 }
+	}
 	return 0;
 }
 
-int  put_raw_no_id_test(struct tlv_box *box1, struct tlv_box *parsebox1, struct tlv *tlv, uint16_t type, uint16_t length, void *value, int flag)
+int put_raw_no_id_test(struct tlv_box *box1, struct tlv_box *parsebox1, struct tlv *tlv, uint16_t type, uint16_t length, void *value, int flag)
 {
 	printf("box->how=%d\n", box1->how);
 	printf("parsebox->how=%d\n", parsebox1->how);
 
-	unsigned char brr[10] = {1,2,3,4,5,6,7,8,9,10};
+	unsigned char brr[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 	struct message msg = {10, brr};
 	tlv_box_put_raw(box1, TEST_TYPE_3, &msg, flag);
 	char str[] = "try the tlv test!!!";
@@ -56,7 +54,7 @@ int  put_raw_no_id_test(struct tlv_box *box1, struct tlv_box *parsebox1, struct 
 	if (res1 == 0) {
 		printf("box1->serialized_len=%d\n", box1->serialized_len);
 		printf("tlv_box_serialize box1 success\n");
-	}else {
+	} else {
 		printf("tlv_box_serialize box1 failed\n");
 		return -1;
 	}
@@ -66,12 +64,12 @@ int  put_raw_no_id_test(struct tlv_box *box1, struct tlv_box *parsebox1, struct 
 	if (res2 == 0)
 		printf("tlv_box_parse ok!!!\n");
 	else
-	 	printf("tlv_box_parse failed!!\n");
+		printf("tlv_box_parse failed!!\n");
 	print_each_tlv(parsebox1, tlv, type, length, value);
 	return 0;
 }
 
-int  put_raw_test(struct tlv *tlv, uint16_t type, uint16_t length, void *value, int flag)
+int put_raw_test(struct tlv *tlv, uint16_t type, uint16_t length, void *value, int flag)
 {
 	printf("\n");
 	printf("----------------tlv_box_put_raw no_id test   how=0---------------------\n");
@@ -99,23 +97,22 @@ int  put_raw_test(struct tlv *tlv, uint16_t type, uint16_t length, void *value, 
 	return 0;
 }
 
-
-int put_box_no_id_test(struct tlv_box *box1, struct tlv_box *boxs, struct tlv_box *parseboxs, struct tlv_box *pbox, \
-			struct tlv *tlv, uint16_t type, uint16_t length,void *value,int flag)
+int put_box_no_id_test(struct tlv_box *box1, struct tlv_box *boxs, struct tlv_box *parseboxs, struct tlv_box *pbox,
+		       struct tlv *tlv, uint16_t type, uint16_t length, void *value, int flag)
 {
 	printf("box1->how=%d\n", box1->how);
 	printf("boxs->how=%d\n", boxs->how);
 	printf("parsebox1->how=%d\n", parseboxs->how);
 	printf("box1->how=%d\n", pbox->how);
 
-	unsigned char brr[10] = {1,2,3,4,5,6,7,8,9,10};
-	struct message msg = {10,brr};
+	unsigned char brr[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+	struct message msg = {10, brr};
 	tlv_box_put_raw(box1, TEST_TYPE_3, &msg, flag);
 	char str[] = "try the tlv test!!!";
 	tlv_box_put_string(box1, TEST_TYPE_6, str, flag);
 
 	tlv_box_put_box(boxs, TEST_TYPE_2, box1);
-	if(tlv_box_serialize(boxs) == 0)
+	if (tlv_box_serialize(boxs) == 0)
 		printf("tlv_box_serialize boxs success\n");
 	else
 		printf("tlv_box_serialize boxs failed\n");
@@ -126,22 +123,21 @@ int put_box_no_id_test(struct tlv_box *box1, struct tlv_box *boxs, struct tlv_bo
 	else
 		printf("tlv_box_parse boxs failed!!!\n");
 
-	 tlv_box_for_each_tlv (parseboxs, tlv, type, length, value) {
-		switch(tlv->type) {
+	tlv_box_for_each_tlv (parseboxs, tlv, type, length, value) {
+		switch (tlv->type) {
 		case TEST_TYPE_2:
-		 	if(tlv_box_parse(pbox,tlv->value,tlv->length) == 0 )
+			if (tlv_box_parse(pbox, tlv->value, tlv->length) == 0)
 				printf("tlv_box_parse pbox success\n");
-		 	else
+			else
 				printf("tlv_box_parse pbox failed\n");
 			break;
 		default:
 			return -1;
 		}
-	 }
+	}
 	print_each_tlv(pbox, tlv, type, length, value);
 	return 0;
 }
-
 
 int put_box_test(struct tlv *tlv, uint16_t type, uint16_t length, void *value, int flag)
 {
@@ -151,7 +147,7 @@ int put_box_test(struct tlv *tlv, uint16_t type, uint16_t length, void *value, i
 	struct tlv_box *boxs = tlv_box_create(0);
 	struct tlv_box *parseboxs = tlv_box_create(0);
 	struct tlv_box *pbox = tlv_box_create(0);
-	put_box_no_id_test(box1, boxs, parseboxs, pbox, tlv,  type, length, value, flag);
+	put_box_no_id_test(box1, boxs, parseboxs, pbox, tlv, type, length, value, flag);
 	tlv_box_destroy(box1);
 	tlv_box_destroy(parseboxs);
 	tlv_box_destroy(pbox);
@@ -163,7 +159,7 @@ int put_box_test(struct tlv *tlv, uint16_t type, uint16_t length, void *value, i
 	struct tlv_box *boxs_2 = tlv_box_create(SERIAL_WITH_ID);
 	struct tlv_box *parseboxs_2 = tlv_box_create(SERIAL_WITH_ID);
 	struct tlv_box *pbox_2 = tlv_box_create(SERIAL_WITH_ID);
-	put_box_no_id_test(box1_2, boxs_2, parseboxs_2, pbox_2, tlv,  type, length, value, flag);
+	put_box_no_id_test(box1_2, boxs_2, parseboxs_2, pbox_2, tlv, type, length, value, flag);
 	tlv_box_destroy(box1_2);
 	tlv_box_destroy(parseboxs_2);
 	tlv_box_destroy(pbox_2);
@@ -175,7 +171,7 @@ int put_box_test(struct tlv *tlv, uint16_t type, uint16_t length, void *value, i
 	struct tlv_box *boxs_3 = tlv_box_create(SERIAL_EACH_WITH_ID);
 	struct tlv_box *parseboxs_3 = tlv_box_create(SERIAL_EACH_WITH_ID);
 	struct tlv_box *pbox_3 = tlv_box_create(SERIAL_EACH_WITH_ID);
-	put_box_no_id_test(box1_3, boxs_3, parseboxs_3, pbox_3, tlv,  type, length, value, flag);
+	put_box_no_id_test(box1_3, boxs_3, parseboxs_3, pbox_3, tlv, type, length, value, flag);
 	tlv_box_destroy(box1_3);
 	tlv_box_destroy(parseboxs_3);
 	tlv_box_destroy(pbox_3);
