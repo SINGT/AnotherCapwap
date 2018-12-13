@@ -18,6 +18,20 @@
 
 #define INET_ADDRMAXLEN 64
 
+/**
+ * Description: Add support of contory code in wifi config
+ */
+#define VERSION_001 0x100
+/**
+ * Description: Rewrite capwap, use hostapd to control wifi
+ */
+#define VERSION_100 0x200
+
+#define AC_VERSION	VERSION_100
+#define WTP_VERSION	VERSION_100
+
+#define VENDOR_ID	23456
+
 struct message {
 	size_t len;
 	void *data;

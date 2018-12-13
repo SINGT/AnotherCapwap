@@ -28,6 +28,7 @@ struct tlv {
 
 #define SERIAL_WITH_ID		BIT(0)
 #define SERIAL_EACH_WITH_ID	BIT(1)
+#define NOT_FREE_BUFFER		BIT(2)
 struct tlv_box {
 	uint32_t id;
 	uint32_t count;
@@ -42,23 +43,22 @@ struct tlv_box {
 	    _value = tlv->value, _type = tlv->type, &tlv->list != (&(box)->tlv_list);              \
 	     tlv = list_entry(tlv->list.next, typeof(*tlv), list))
 
-struct tlv_box *tlv_box_create();
+struct tlv_box *tlv_box_create(uint32_t how);
 void tlv_box_destroy(struct tlv_box *box);
 
 void *tlv_box_get_buffer(struct tlv_box *box);
 int tlv_box_get_size(struct tlv_box *box);
-
-void tlv_box_set_how(struct tlv_box *box, uint32_t how);
 
 /**
  * tlv flags:
  * TLV_NOCPY: don't copy message buffer, use the pointer directly.
  */
 #define TLV_NOCPY	BIT(0)
-#define TLV_NOFREE	(BIT(1) | BIT(0))
+#define TLV_NOFREE_BIT	BIT(1)
+#define TLV_NOFREE	(TLV_NOCPY | TLV_NOFREE_BIT)
 int tlv_box_put_raw(struct tlv_box *box, uint16_t type, struct message *msg, int flag);
 int tlv_box_put_string(struct tlv_box *box, uint16_t type, char *value, int flag);
-int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object, int flag);
+int tlv_box_put_box(struct tlv_box *box, uint16_t type, struct tlv_box *object);
 
 int tlv_box_parse(struct tlv_box *_box, void *buffer, int buffersize);
 int tlv_box_serialize(struct tlv_box *box);

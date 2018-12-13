@@ -393,9 +393,23 @@ static int capwap_main_handle_interface(struct capwap_interface_message *msg,
 	return 0;
 }
 
+static void capwap_send_result(struct evbuffer *out, int err)
+{
+	struct capwap_interface_message result;
+
+	result.cmd = MSG_END_CMD;
+	result.type = MSG_TYPE_RESULT;
+	result.length = sizeof(err);
+
+	// echo_event_cb() will handle the error
+	evbuffer_add(out, &result, sizeof(result));
+	evbuffer_add(out, &err, sizeof(err));
+}
+
 static void capwap_recv_interface(struct bufferevent *bev, void *ctx)
 {
 	struct evbuffer *input = bufferevent_get_input(bev);
+	struct evbuffer *output = bufferevent_get_output(bev);
 	size_t buffer_len = evbuffer_get_length(input);
 	struct capwap_interface_message msg;
 	struct bufferevent_args *bv = ctx;
@@ -420,6 +434,7 @@ static void capwap_recv_interface(struct bufferevent *bev, void *ctx)
 
 	err = capwap_main_handle_interface(&msg, bv->cmd, buff, bv->args);
 	free(buff); // Always needs free.
+	capwap_send_result(output, err);
 	if (err) {
 		CWWarningLog("json_handle() returned with %d", err);
 		return;
@@ -466,7 +481,7 @@ int capwap_init_wtp_interface(struct capwap_wtp *wtp)
 	bv_args->args = wtp;
 	wtp->if_args = bv_args;
 	wtp->if_ev = evconnlistener_new(wtp->ev_base, accept_conn_cb, bv_args,
-				      LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE | LEV_OPT_THREADSAFE, -1, sock);
+				      LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE, -1, sock);
 	if (!wtp->if_ev) {
 		perror("Couldn't create listener");
 		return -errno;
@@ -499,7 +514,7 @@ static void *capwap_main_interface_loop(void *arg)
 
 	base = event_base_new();
 	listener = evconnlistener_new(base, accept_conn_cb, &bv_args,
-				      LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE | LEV_OPT_THREADSAFE, -1, sock);
+				      LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE, -1, sock);
 	if (!listener) {
 		perror("Couldn't create listener");
 		exit(-1);

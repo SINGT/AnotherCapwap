@@ -12,27 +12,12 @@
 
 typedef int (*cmd_fn)(void *);
 
-int printWTPList(void *);
-int do_update_cmd(void *);
+int gLoggingLevel = DEFAULT_LOGGING_LEVEL;
+int gEnabledLog = 1;
+static struct sockaddr_un server, client;
 
-struct command {
-	char *name;
-	cmd_fn func;
-};
 
-struct capwap_interface_message {
-	uint32_t cmd;
-	uint16_t type;
-	uint16_t length;
-};
-
-struct command CMDs[] = {
-	{"wtps", printWTPList},
-	{"update", do_update_cmd},
-	{NULL, NULL}
-};
-
-void usage(char *name)
+void usage(const char *name)
 {
 	printf("%s -c command \n", name);
 	printf("\nAvailable commands:\n");
@@ -83,6 +68,12 @@ int writen(int fd, const void *vptr, size_t n)
 	return (n);
 }
 
+struct json_object *json_object_object_get_old(struct json_object *obj, const char *name)
+{
+	struct json_object *sub;
+	return json_object_object_get_ex(obj, name, &sub) ? sub : NULL;
+}
+
 static const char *get_string_of_json_key(json_object *json, const char *key)
 {
 	struct json_object *key_obj = json_object_object_get_old(json, key);
@@ -92,10 +83,10 @@ static const char *get_string_of_json_key(json_object *json, const char *key)
 	return json_object_get_string(key_obj);
 }
 
-static int connect_to_dev(char *mac)
+static int connect_to_dev(const char *mac)
 {
-	struct sockaddr_un server, client;
 	int sock;
+	int yes = 1;
 
 	memset(&server, 0, sizeof(server));
 	memset(&client, 0, sizeof(client));
@@ -105,11 +96,13 @@ static int connect_to_dev(char *mac)
 	snprintf(client.sun_path, sizeof(client.sun_path), "/tmp/WUM.%s", mac);
 
 	sock = socket(AF_LOCAL, SOCK_STREAM, 0);
+	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	unlink(client.sun_path);
 	if (bind(sock, (struct sockaddr *)&client, sizeof(client)) < 0) {
 		perror("bind");
 		return -errno;
 	}
-	if (connect(sock, (struct sockaddr *)&client, sizeof(client)) < 0) {
+	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
 		perror("connect");
 		return -errno;
 	}
@@ -138,23 +131,35 @@ int receive_result(int sock)
 			return errno;
 		}
 		if (if_msg.type == MSG_TYPE_STRING) {
-			printf("%s\n", buffer);
+			printf("%s\n", (char *)buffer);
 		} else if (if_msg.type == MSG_TYPE_RESULT) {
 			len = if_msg.length < sizeof(result) ? if_msg.length : sizeof(result);
 			memcpy(&result, buffer, len);
 		}
 	} while (if_msg.cmd != MSG_END_CMD);
+	unlink(client.sun_path);
 
 	return result;
+}
+
+int printWTPList(void *arg)
+{
+	return 0;
+}
+
+int do_update_cmd(void *arg)
+{
+	return 0;
 }
 
 int do_json_cmd(char *json_msg)
 {
 	struct capwap_interface_message if_msg = {0};
-	json_object *msg_obj, *cmd_obj;
-	char *command;
-	char *dev;
+	json_object *msg_obj;
+	const char *command;
+	const char *dev;
 	int server;
+	int err;
 
 	msg_obj = json_tokener_parse(json_msg);
 	if (is_error(msg_obj))
@@ -174,14 +179,28 @@ int do_json_cmd(char *json_msg)
 	writen(server, &if_msg, sizeof(if_msg));
 	writen(server, json_msg, if_msg.length);
 
-	return receive_result(server);
+	err = receive_result(server);
+	err = err < 0 ? -err : err;
+	printf("result(%d): %s", err, strerror(err));
+	return err;
 }
+
+struct command {
+	char *name;
+	cmd_fn func;
+};
+
+struct command CMDs[] = {
+	{"wtps", printWTPList},
+	{"update", do_update_cmd},
+	{NULL, NULL}
+};
 
 cmd_fn find_func(char *cmd)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(CMDs); i++) {
+	for (i = 0; CMDs[i].name; i++) {
 		if (!strcmp(cmd, CMDs[i].name))
 			return CMDs[i].func;
 	}
@@ -189,7 +208,7 @@ cmd_fn find_func(char *cmd)
 	return NULL;
 }
 
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
 	int c = -1;
 	char *json_msg = NULL;
@@ -222,7 +241,7 @@ int main(int argc, char const *argv[])
 			usage(argv[0]);
 			return -1;
 		}
-		return func(argv[1]);
+		return func(NULL);
 	}
 	return 0;
 }

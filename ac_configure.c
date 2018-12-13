@@ -19,15 +19,16 @@ static int capwap_parse_configure_request(struct capwap_wtp *wtp, struct cw_ctrl
 
 	cwmsg_ctrlmsg_for_each_elem(cfg_req, elem_type, elem_len, elem_value) {
 		switch (elem_type) {
+		case CW_MSG_ELEMENT_IEEE80211_MULTI_DOMAIN_CAPABILITY_CW_TYPE:
+			if (cwmsg_parse_wifi_info(wtp, elem_value, elem_len))
+				return -EINVAL;
+			break;
 		case CW_MSG_ELEMENT_AC_NAME_CW_TYPE:
-			elem_value;
-			elem_len;
 		case CW_MSG_ELEMENT_AC_NAME_INDEX_CW_TYPE:
 		case CW_MSG_ELEMENT_RADIO_ADMIN_STATE_CW_TYPE:
 		case CW_MSG_ELEMENT_STATISTICS_TIMER_CW_TYPE:
 		case CW_MSG_ELEMENT_WTP_REBOOT_STATISTICS_CW_TYPE:
 		case CW_MSG_ELEMENT_IEEE80211_WTP_RADIO_INFORMATION_CW_TYPE:
-		case CW_MSG_ELEMENT_IEEE80211_MULTI_DOMAIN_CAPABILITY_CW_TYPE:
 		case CW_MSG_ELEMENT_IEEE80211_MAC_OPERATION_CW_TYPE:
 		case CW_MSG_ELEMENT_IEEE80211_SUPPORTED_RATES_CW_TYPE:
 		default:
